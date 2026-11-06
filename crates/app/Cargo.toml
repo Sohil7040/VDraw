@@ -1,0 +1,23 @@
+[package]
+name = "app"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "vdraw"
+path = "src/main.rs"
+
+[dependencies]
+core-geom = { path = "../core-geom" }
+core-doc = { path = "../core-doc" }
+core-snap = { path = "../core-snap" }
+core-tools = { path = "../core-tools" }
+core-cam = { path = "../core-cam" }
+eframe = { workspace = true }
+egui = { workspace = true }
+egui_extras = { workspace = true }
+serde = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }
+anyhow = { workspace = true }
+tiny-skia = { workspace = true }

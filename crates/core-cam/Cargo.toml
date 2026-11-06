@@ -1,0 +1,7 @@
+[package]
+name = "core-cam"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+core-geom = { path = "../core-geom" }

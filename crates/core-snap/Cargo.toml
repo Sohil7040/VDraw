@@ -1,0 +1,8 @@
+[package]
+name = "core-snap"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+core-geom = { path = "../core-geom" }
+rstar = { workspace = true }

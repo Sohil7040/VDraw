@@ -1,0 +1,12 @@
+[package]
+name = "core-geom"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+kurbo = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }

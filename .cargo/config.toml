@@ -1,0 +1,6 @@
+[build]
+# Use mold linker if available for faster linking
+# rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "link-arg=-Wl,--as-needed"]
