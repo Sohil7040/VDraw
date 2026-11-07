@@ -21,6 +21,10 @@ pub struct PointerEvent {
     pub modifiers: ModifiersState,
     /// Whether this is a primary (left) button action.
     pub primary: bool,
+    /// Viewport zoom scale.
+    pub zoom: f64,
+    /// Document page dimensions in mm (width, height).
+    pub page_size: Option<(f64, f64)>,
 }
 
 impl PointerEvent {
@@ -36,11 +40,19 @@ impl PointerEvent {
             screen_pos,
             modifiers,
             primary,
+            zoom: 1.0,
+            page_size: None,
         }
     }
 
     pub fn with_snapped_pos(mut self, snapped: Point2) -> Self {
         self.snapped_pos = snapped;
+        self
+    }
+
+    pub fn with_viewport(mut self, zoom: f64, page_size: Option<(f64, f64)>) -> Self {
+        self.zoom = zoom;
+        self.page_size = page_size;
         self
     }
 

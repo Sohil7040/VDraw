@@ -82,6 +82,7 @@ pub trait Tool: std::fmt::Debug + Send + Sync + 'static {
         doc: &mut Document,
         undo: &mut UndoStack,
         event: &PointerEvent,
+        snap: Option<&core_snap::SnapSolver>,
     ) -> bool;
 
     fn on_pointer_move(
@@ -89,6 +90,7 @@ pub trait Tool: std::fmt::Debug + Send + Sync + 'static {
         doc: &mut Document,
         undo: &mut UndoStack,
         event: &PointerEvent,
+        snap: Option<&core_snap::SnapSolver>,
     ) -> bool;
 
     fn on_pointer_up(

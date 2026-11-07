@@ -62,6 +62,7 @@ impl Tool for EllipseTool {
         _doc: &mut Document,
         _undo: &mut UndoStack,
         event: &PointerEvent,
+        _snap: Option<&core_snap::SnapSolver>,
     ) -> bool {
         if event.primary {
             self.drag_start = Some(event.pos());
@@ -77,6 +78,7 @@ impl Tool for EllipseTool {
         _doc: &mut Document,
         _undo: &mut UndoStack,
         event: &PointerEvent,
+        _snap: Option<&core_snap::SnapSolver>,
     ) -> bool {
         if self.drag_start.is_some() {
             self.current_pt = Some(event.pos());

@@ -19,6 +19,15 @@ use crate::{
     workspace::{WorkspacePreset, WorkspaceState},
 };
 
+/// Application workflow modes (inspired by Corelith Studio).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum WorkflowMode {
+    #[default]
+    Design,
+    LaserCam,
+    Preview,
+}
+
 /// The root application state.
 pub struct VDrawApp {
     doc: Document,
@@ -33,6 +42,7 @@ pub struct VDrawApp {
     palette: CommandPalette,
     pub toast: ToastManager,
     pub welcome: WelcomeState,
+    pub workflow_mode: WorkflowMode,
     /// Whether this is the first frame (used to fit the page on startup).
     first_frame: bool,
 }
@@ -58,6 +68,7 @@ impl VDrawApp {
             palette: CommandPalette::new(),
             toast: ToastManager::new(),
             welcome: WelcomeState::new(),
+            workflow_mode: WorkflowMode::Design,
             first_frame: true,
         }
     }
@@ -568,6 +579,63 @@ impl eframe::App for VDrawApp {
                             ui.close_menu();
                         }
                     });
+
+                    // ── Workflow Mode Bar (Design | Laser CAM | Toolpath Preview) ────
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.spacing_mut().item_spacing.x = 4.0;
+
+                        // 3. Toolpath Preview Button
+                        let is_preview = self.workflow_mode == WorkflowMode::Preview;
+                        let prev_text = egui::RichText::new("▷ Preview").strong().small();
+                        let prev_btn = if is_preview {
+                            egui::Button::new(prev_text.color(egui::Color32::WHITE))
+                                .fill(egui::Color32::from_rgb(15, 147, 136))
+                        } else {
+                            egui::Button::new(prev_text.color(theme::TEXT_SECONDARY))
+                        };
+                        if ui.add(prev_btn).clicked() {
+                            self.workflow_mode = WorkflowMode::Preview;
+                            self.dock.cam_config.preview = true;
+                            self.canvas.cam_config.preview = true;
+                            self.toast
+                                .show("Toolpath preview mode: simulating laser execution sequence");
+                        }
+
+                        // 2. Laser CAM Button
+                        let is_laser = self.workflow_mode == WorkflowMode::LaserCam;
+                        let laser_text = egui::RichText::new("▤ Laser CAM").strong().small();
+                        let laser_btn = if is_laser {
+                            egui::Button::new(laser_text.color(egui::Color32::WHITE))
+                                .fill(egui::Color32::from_rgb(15, 147, 136))
+                        } else {
+                            egui::Button::new(laser_text.color(theme::TEXT_SECONDARY))
+                        };
+                        if ui.add(laser_btn).clicked() {
+                            self.workflow_mode = WorkflowMode::LaserCam;
+                            self.dock.active_tab = crate::panels::dock::DockTab::Laser;
+                            self.dock.cam_config.preview = false;
+                            self.canvas.cam_config.preview = false;
+                            self.toast
+                                .show("Laser CAM mode: configure speeds, powers, and passes");
+                        }
+
+                        // 1. Design Mode Button
+                        let is_design = self.workflow_mode == WorkflowMode::Design;
+                        let design_text = egui::RichText::new("✳ Design").strong().small();
+                        let design_btn = if is_design {
+                            egui::Button::new(design_text.color(egui::Color32::WHITE))
+                                .fill(egui::Color32::from_rgb(15, 147, 136))
+                        } else {
+                            egui::Button::new(design_text.color(theme::TEXT_SECONDARY))
+                        };
+                        if ui.add(design_btn).clicked() {
+                            self.workflow_mode = WorkflowMode::Design;
+                            self.dock.cam_config.preview = false;
+                            self.canvas.cam_config.preview = false;
+                            self.toast
+                                .show("Design mode: vector drawing and arrangement");
+                        }
+                    });
                 });
             });
 
@@ -662,6 +730,7 @@ impl eframe::App for VDrawApp {
                 // Sync workspace settings → canvas state
                 self.canvas.show_grid = self.workspace.show_grid;
                 self.canvas.show_rulers = self.workspace.show_rulers;
+                self.canvas.cam_config = self.dock.cam_config.clone();
 
                 // Fit page on first frame
                 if self.first_frame {
@@ -687,6 +756,8 @@ impl eframe::App for VDrawApp {
                     &mut self.tool_manager,
                     &mut self.snap_solver,
                 );
+
+                self.dock.cam_config = self.canvas.cam_config.clone();
             });
 
         // ── Welcome Screen modal ──────────────────────────────────────────

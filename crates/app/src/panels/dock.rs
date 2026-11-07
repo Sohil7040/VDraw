@@ -42,6 +42,7 @@ impl DockTab {
 pub struct DockState {
     pub active_tab: DockTab,
     pub boolean_state: BooleanPanelState,
+    pub cam_config: core_cam::LaserProductionConfig,
 }
 
 /// Show the dock tab bar and return the active tab.
@@ -96,7 +97,7 @@ pub fn show_dock_content(
             show_align_panel(ui);
         }
         DockTab::Laser => {
-            show_laser_panel(ui);
+            super::laser_panel::show_laser_panel(ui, doc, undo, &mut state.cam_config, toast);
         }
     }
 }
@@ -114,11 +115,8 @@ fn show_properties_panel(ui: &mut egui::Ui) {
 fn show_align_panel(ui: &mut egui::Ui) {
     ui.heading("Align & Distribute");
     ui.separator();
-    ui.label(egui::RichText::new("Phase 0 stub").color(egui::Color32::from_gray(110)));
-}
-
-fn show_laser_panel(ui: &mut egui::Ui) {
-    ui.heading("Laser Settings");
-    ui.separator();
-    ui.label(egui::RichText::new("Phase 0 stub").color(egui::Color32::from_gray(110)));
+    ui.label(
+        egui::RichText::new("Smart snapping and alignment active on canvas.")
+            .color(egui::Color32::from_gray(140)),
+    );
 }

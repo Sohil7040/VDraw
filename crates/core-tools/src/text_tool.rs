@@ -49,6 +49,7 @@ impl Tool for TextTool {
         doc: &mut Document,
         undo: &mut UndoStack,
         event: &PointerEvent,
+        _snap: Option<&core_snap::SnapSolver>,
     ) -> bool {
         let pos = event.pos();
         self.click_pos = Some(pos);
@@ -63,6 +64,7 @@ impl Tool for TextTool {
         _doc: &mut Document,
         _undo: &mut UndoStack,
         event: &PointerEvent,
+        _snap: Option<&core_snap::SnapSolver>,
     ) -> bool {
         self.click_pos = Some(event.pos());
         false

@@ -72,6 +72,7 @@ impl Tool for KnifeTool {
         _doc: &mut Document,
         _undo: &mut UndoStack,
         event: &PointerEvent,
+        _snap: Option<&core_snap::SnapSolver>,
     ) -> bool {
         let pos = event.pos();
         self.start_pos = Some(pos);
@@ -86,6 +87,7 @@ impl Tool for KnifeTool {
         _doc: &mut Document,
         _undo: &mut UndoStack,
         event: &PointerEvent,
+        _snap: Option<&core_snap::SnapSolver>,
     ) -> bool {
         if self.is_dragging {
             let pos = event.pos();

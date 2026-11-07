@@ -101,6 +101,37 @@ pub struct AlignmentLine {
     pub end: Point2,
     pub label: String,
     pub is_vertical: bool,
+    pub color_rgb: [u8; 3],
+}
+
+impl AlignmentLine {
+    pub fn new(start: Point2, end: Point2, label: impl Into<String>, is_vertical: bool) -> Self {
+        Self {
+            start,
+            end,
+            label: label.into(),
+            is_vertical,
+            color_rgb: [124, 92, 255], // Default purple/accent
+        }
+    }
+
+    pub fn with_color(mut self, rgb: [u8; 3]) -> Self {
+        self.color_rgb = rgb;
+        self
+    }
+}
+
+/// The outcome of evaluating snapping during a shape translation / move.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct TransformSnapResult {
+    /// Snapped translation delta to apply to the shapes.
+    pub delta: Point2,
+    /// Winning snap target (if a point / node / center snap occurred).
+    pub snap_target: Option<SnapTarget>,
+    /// Active dynamic alignment lines (Center-to-Center, Edge-to-Edge, Bed Center, etc.).
+    pub alignment_lines: Vec<AlignmentLine>,
+    /// Summary label describing the snap (e.g. "Center to Center", "Node", "Bed Center X").
+    pub label: Option<String>,
 }
 
 /// Dynamic angle ray originating from a reference point.

@@ -226,8 +226,16 @@ pub fn show_prop_bar(
 
             if let Some(bounds) = doc.selection_bounds() {
                 ui.separator();
-                ui.monospace(format!("W: {:>6.2}", bounds.width()));
-                ui.monospace(format!("H: {:>6.2}", bounds.height()));
+                ui.label(
+                    egui::RichText::new("⊕ Center:")
+                        .color(egui::Color32::from_rgb(6, 182, 212))
+                        .small(),
+                );
+                ui.monospace(format!("X: {:>6.1}", bounds.center().x));
+                ui.monospace(format!("Y: {:>6.1}", bounds.center().y));
+                ui.separator();
+                ui.monospace(format!("W: {:>6.1}", bounds.width()));
+                ui.monospace(format!("H: {:>6.1}", bounds.height()));
             }
 
             // Quick Boolean Actions Bar (when 2+ shapes selected)

@@ -50,6 +50,7 @@ impl Tool for PenTool {
         doc: &mut Document,
         undo: &mut UndoStack,
         event: &PointerEvent,
+        _snap: Option<&core_snap::SnapSolver>,
     ) -> bool {
         if !event.primary {
             return false;
@@ -78,6 +79,7 @@ impl Tool for PenTool {
         _doc: &mut Document,
         _undo: &mut UndoStack,
         event: &PointerEvent,
+        _snap: Option<&core_snap::SnapSolver>,
     ) -> bool {
         self.current_cursor = Some(event.pos());
 

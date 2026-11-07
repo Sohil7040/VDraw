@@ -3,6 +3,7 @@
 pub mod boolean_panel;
 pub mod dock;
 pub mod fill_stroke;
+pub mod laser_panel;
 pub mod object_manager;
 pub mod properties;
 pub mod statusbar;

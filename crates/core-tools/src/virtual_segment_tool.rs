@@ -45,6 +45,7 @@ impl Tool for VirtualSegmentDeleteTool {
         doc: &mut Document,
         undo: &mut UndoStack,
         event: &PointerEvent,
+        _snap: Option<&core_snap::SnapSolver>,
     ) -> bool {
         let pos = event.pos();
         self.hovered_pos = Some(pos);
@@ -57,6 +58,7 @@ impl Tool for VirtualSegmentDeleteTool {
         _doc: &mut Document,
         _undo: &mut UndoStack,
         event: &PointerEvent,
+        _snap: Option<&core_snap::SnapSolver>,
     ) -> bool {
         self.hovered_pos = Some(event.pos());
         false

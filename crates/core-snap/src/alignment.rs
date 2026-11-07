@@ -82,12 +82,15 @@ impl AlignmentConfig {
 
                         let span_min_y = test_box.min_y.min(other.min_y) - 5.0;
                         let span_max_y = test_box.max_y.max(other.max_y) + 5.0;
-                        best_x_line = Some(AlignmentLine {
-                            start: Point2::new(target_x, span_min_y),
-                            end: Point2::new(target_x, span_max_y),
-                            label: label.to_string(),
-                            is_vertical: true,
-                        });
+                        best_x_line = Some(
+                            AlignmentLine::new(
+                                Point2::new(target_x, span_min_y),
+                                Point2::new(target_x, span_max_y),
+                                label,
+                                true,
+                            )
+                            .with_color([245, 158, 11]), // Amber for edge-to-edge
+                        );
                     }
                 }
             }
@@ -101,12 +104,15 @@ impl AlignmentConfig {
 
                     let span_min_y = test_box.min_y.min(other.min_y) - 5.0;
                     let span_max_y = test_box.max_y.max(other.max_y) + 5.0;
-                    best_x_line = Some(AlignmentLine {
-                        start: Point2::new(other_cx, span_min_y),
-                        end: Point2::new(other_cx, span_max_y),
-                        label: "Center X".to_string(),
-                        is_vertical: true,
-                    });
+                    best_x_line = Some(
+                        AlignmentLine::new(
+                            Point2::new(other_cx, span_min_y),
+                            Point2::new(other_cx, span_max_y),
+                            "Center X",
+                            true,
+                        )
+                        .with_color([6, 182, 212]), // Cyan for center-to-center
+                    );
                 }
             }
 
@@ -131,12 +137,15 @@ impl AlignmentConfig {
 
                         let span_min_x = test_box.min_x.min(other.min_x) - 5.0;
                         let span_max_x = test_box.max_x.max(other.max_x) + 5.0;
-                        best_y_line = Some(AlignmentLine {
-                            start: Point2::new(span_min_x, target_y),
-                            end: Point2::new(span_max_x, target_y),
-                            label: label.to_string(),
-                            is_vertical: false,
-                        });
+                        best_y_line = Some(
+                            AlignmentLine::new(
+                                Point2::new(span_min_x, target_y),
+                                Point2::new(span_max_x, target_y),
+                                label,
+                                false,
+                            )
+                            .with_color([245, 158, 11]), // Amber for edge-to-edge
+                        );
                     }
                 }
             }
@@ -150,12 +159,15 @@ impl AlignmentConfig {
 
                     let span_min_x = test_box.min_x.min(other.min_x) - 5.0;
                     let span_max_x = test_box.max_x.max(other.max_x) + 5.0;
-                    best_y_line = Some(AlignmentLine {
-                        start: Point2::new(span_min_x, other_cy),
-                        end: Point2::new(span_max_x, other_cy),
-                        label: "Center Y".to_string(),
-                        is_vertical: false,
-                    });
+                    best_y_line = Some(
+                        AlignmentLine::new(
+                            Point2::new(span_min_x, other_cy),
+                            Point2::new(span_max_x, other_cy),
+                            "Center Y",
+                            false,
+                        )
+                        .with_color([6, 182, 212]), // Cyan for center-to-center
+                    );
                 }
             }
         }
@@ -184,12 +196,15 @@ impl AlignmentConfig {
                         if adj_right.abs() <= best_x_diff {
                             best_x_diff = adj_right.abs();
                             best_snap_dx = Some(current_delta.x + adj_right);
-                            best_x_line = Some(AlignmentLine {
-                                start: Point2::new(target_right, test_box.min_y),
-                                end: Point2::new(target_right, test_box.max_y),
-                                label: format!("Equal Spacing ({:.1} mm)", gap_x),
-                                is_vertical: true,
-                            });
+                            best_x_line = Some(
+                                AlignmentLine::new(
+                                    Point2::new(target_right, test_box.min_y),
+                                    Point2::new(target_right, test_box.max_y),
+                                    format!("Equal Spacing ({:.1} mm)", gap_x),
+                                    true,
+                                )
+                                .with_color([139, 92, 246]),
+                            );
                         }
 
                         let target_left = b1.min_x - gap_x - test_box.width();
@@ -197,12 +212,15 @@ impl AlignmentConfig {
                         if adj_left.abs() <= best_x_diff {
                             best_x_diff = adj_left.abs();
                             best_snap_dx = Some(current_delta.x + adj_left);
-                            best_x_line = Some(AlignmentLine {
-                                start: Point2::new(target_left, test_box.min_y),
-                                end: Point2::new(target_left, test_box.max_y),
-                                label: format!("Equal Spacing ({:.1} mm)", gap_x),
-                                is_vertical: true,
-                            });
+                            best_x_line = Some(
+                                AlignmentLine::new(
+                                    Point2::new(target_left, test_box.min_y),
+                                    Point2::new(target_left, test_box.max_y),
+                                    format!("Equal Spacing ({:.1} mm)", gap_x),
+                                    true,
+                                )
+                                .with_color([139, 92, 246]),
+                            );
                         }
                     }
                 }

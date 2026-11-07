@@ -161,8 +161,9 @@ impl ToolManager {
         doc: &mut Document,
         undo: &mut UndoStack,
         event: &PointerEvent,
+        snap: Option<&core_snap::SnapSolver>,
     ) -> bool {
-        self.active_tool.on_pointer_down(doc, undo, event)
+        self.active_tool.on_pointer_down(doc, undo, event, snap)
     }
 
     pub fn on_pointer_move(
@@ -170,8 +171,9 @@ impl ToolManager {
         doc: &mut Document,
         undo: &mut UndoStack,
         event: &PointerEvent,
+        snap: Option<&core_snap::SnapSolver>,
     ) -> bool {
-        self.active_tool.on_pointer_move(doc, undo, event)
+        self.active_tool.on_pointer_move(doc, undo, event, snap)
     }
 
     pub fn on_pointer_up(

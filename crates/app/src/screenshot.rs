@@ -26,7 +26,7 @@ pub fn render_ui_screenshot(output_path: &Path) -> Result<(), String> {
     // 1. Fill entire window with base background
     pixmap.fill(bg_base);
 
-    // 2. Menu bar (Height 32)
+    // 2. Menu bar & Mode Switcher (Height 32)
     let mut paint = Paint::default();
     paint.set_color(bg_panel);
     let menu_rect = Rect::from_xywh(0.0, 0.0, width as f32, 32.0).unwrap();
@@ -37,11 +37,38 @@ pub fn render_ui_screenshot(output_path: &Path) -> Result<(), String> {
     let line_rect = Rect::from_xywh(0.0, 31.0, width as f32, 1.0).unwrap();
     pixmap.fill_rect(line_rect, &paint, Transform::identity(), None);
 
-    // Menu items (File, Edit, Object, View, Tools, Help)
+    // Menu items (File, Edit, Object, View, Tools, Laser, Help)
     let stroke_1px = Stroke {
         width: 1.0,
         ..Default::default()
     };
+
+    // Mode Switcher in Header (Center-Right: Design | Laser CAM | Toolpath Preview)
+    let mode_tabs = [
+        ("Design", bg_widget, false, 880.0, 75.0),
+        (
+            "Laser CAM",
+            Color::from_rgba8(15, 147, 136, 220),
+            true,
+            960.0,
+            95.0,
+        ), // Teal active
+        ("Preview", bg_widget, false, 1060.0, 80.0),
+    ];
+    for (_label, fill_col, is_active, mx, mw) in mode_tabs {
+        paint.set_color(fill_col);
+        let m_pill = Rect::from_xywh(mx, 5.0, mw, 22.0).unwrap();
+        pixmap.fill_rect(m_pill, &paint, Transform::identity(), None);
+        if is_active {
+            paint.set_color(Color::from_rgba8(32, 211, 181, 255));
+            let p = PathBuilder::from_rect(m_pill);
+            let s_active = Stroke {
+                width: 1.5,
+                ..Default::default()
+            };
+            pixmap.stroke_path(&p, &paint, &s_active, Transform::identity(), None);
+        }
+    }
 
     // 3. Property bar (Height 36, Y = 32..68)
     paint.set_color(bg_panel);
@@ -51,10 +78,18 @@ pub fn render_ui_screenshot(output_path: &Path) -> Result<(), String> {
     let line_rect = Rect::from_xywh(0.0, 67.0, width as f32, 1.0).unwrap();
     pixmap.fill_rect(line_rect, &paint, Transform::identity(), None);
 
-    // Property bar: Phase 4 Quick Boolean Actions Bar (Weld, Trim, Intersect, Exclude, Boundary, Contour)
+    // Property bar: Selection Center Readout (⊕ Center: X: 160.00 mm  Y: 200.00 mm)
+    paint.set_color(bg_widget);
+    let center_readout = Rect::from_xywh(60.0, 38.0, 190.0, 24.0).unwrap();
+    pixmap.fill_rect(center_readout, &paint, Transform::identity(), None);
+    paint.set_color(Color::from_rgba8(6, 182, 212, 180)); // Cyan outline
+    let p_c_box = PathBuilder::from_rect(center_readout);
+    pixmap.stroke_path(&p_c_box, &paint, &stroke_1px, Transform::identity(), None);
+
+    // Property bar: Quick Boolean Actions Bar (Weld, Trim, Intersect, Exclude, Boundary, Contour)
     let bool_btn_w = 68.0;
     let bool_btn_h = 24.0;
-    let mut btn_x = 220.0;
+    let mut btn_x = 260.0;
     for &btn_col in &[
         Color::from_rgba8(124, 92, 255, 200), // ⊞ Weld (Active)
         Color::from_rgba8(46, 51, 62, 255),   // ⊟ Trim
@@ -142,81 +177,135 @@ pub fn render_ui_screenshot(output_path: &Path) -> Result<(), String> {
     let line_rect = Rect::from_xywh(1160.0, 68.0, 1.0, 808.0).unwrap();
     pixmap.fill_rect(line_rect, &paint, Transform::identity(), None);
 
-    // Dock tab headers: Objects, Properties, Colors, Shaping (Active), Align, Laser
+    // Dock tab headers: Objects, Properties, Shaping, Align, Laser CAM (Active)
     paint.set_color(bg_widget);
     let tabs_rect = Rect::from_xywh(1168.0, 76.0, 264.0, 32.0).unwrap();
     pixmap.fill_rect(tabs_rect, &paint, Transform::identity(), None);
 
-    // Active tab indicator on Tab 4: Shaping / Booleans
-    paint.set_color(accent);
-    let active_tab_line = Rect::from_xywh(1276.0, 106.0, 52.0, 2.0).unwrap();
+    // Active tab indicator on Tab 5: Laser CAM (Teal glow)
+    paint.set_color(Color::from_rgba8(32, 211, 181, 255));
+    let active_tab_line = Rect::from_xywh(1348.0, 106.0, 78.0, 2.0).unwrap();
     pixmap.fill_rect(active_tab_line, &paint, Transform::identity(), None);
 
-    // ── Phase 4 Shaping / Booleans Controls in Right Dock ───────────────────
+    // ── Phase 4 + Laser CAM Controls in Right Dock ─────────────────────────
 
-    // Group 1: Boolean Operations Group Box (Y = 120..310)
+    // Group 1: Material Preset & Machine Setup Box (Y = 118..240)
     paint.set_color(bg_widget);
-    let bool_box = Rect::from_xywh(1172.0, 120.0, 256.0, 186.0).unwrap();
-    pixmap.fill_rect(bool_box, &paint, Transform::identity(), None);
+    let mat_box = Rect::from_xywh(1172.0, 118.0, 256.0, 118.0).unwrap();
+    pixmap.fill_rect(mat_box, &paint, Transform::identity(), None);
     paint.set_color(border);
-    let p_bbox = PathBuilder::from_rect(bool_box);
-    pixmap.stroke_path(&p_bbox, &paint, &stroke_1px, Transform::identity(), None);
+    let p_matbox = PathBuilder::from_rect(mat_box);
+    pixmap.stroke_path(&p_matbox, &paint, &stroke_1px, Transform::identity(), None);
 
-    // 8 Boolean action buttons inside Group Box
-    let ops_buttons = [
-        ("Weld", Color::from_rgba8(124, 92, 255, 200), 142.0),
-        ("Trim", bg_panel, 172.0),
-        ("Intersect", bg_panel, 202.0),
-        ("Exclude", bg_panel, 232.0),
-        ("Boundary", Color::from_rgba8(32, 211, 181, 160), 262.0),
+    // Material preset dropdown field
+    paint.set_color(bg_panel);
+    let preset_dd = Rect::from_xywh(1184.0, 142.0, 232.0, 26.0).unwrap();
+    pixmap.fill_rect(preset_dd, &paint, Transform::identity(), None);
+    paint.set_color(Color::from_rgba8(15, 147, 136, 180));
+    let p_pdd = PathBuilder::from_rect(preset_dd);
+    pixmap.stroke_path(&p_pdd, &paint, &stroke_1px, Transform::identity(), None);
+
+    // Power & Speed indicator pills
+    paint.set_color(Color::from_rgba8(255, 68, 68, 40));
+    let pwr_pill = Rect::from_xywh(1184.0, 178.0, 112.0, 22.0).unwrap();
+    pixmap.fill_rect(pwr_pill, &paint, Transform::identity(), None);
+    paint.set_color(Color::from_rgba8(32, 211, 181, 40));
+    let spd_pill = Rect::from_xywh(1304.0, 178.0, 112.0, 22.0).unwrap();
+    pixmap.fill_rect(spd_pill, &paint, Transform::identity(), None);
+
+    // Kerf Offset pill (0.150 mm)
+    paint.set_color(bg_panel);
+    let kerf_pill = Rect::from_xywh(1184.0, 206.0, 232.0, 20.0).unwrap();
+    pixmap.fill_rect(kerf_pill, &paint, Transform::identity(), None);
+
+    // Group 2: Optimization Engine (Inside-Out & TSP) (Y = 246..345)
+    paint.set_color(bg_widget);
+    let opt_box = Rect::from_xywh(1172.0, 246.0, 256.0, 95.0).unwrap();
+    pixmap.fill_rect(opt_box, &paint, Transform::identity(), None);
+    paint.set_color(border);
+    let p_optbox = PathBuilder::from_rect(opt_box);
+    pixmap.stroke_path(&p_optbox, &paint, &stroke_1px, Transform::identity(), None);
+
+    // Checked toggle 1: Cut Inside-Out (Inner holes first)
+    paint.set_color(Color::from_rgba8(32, 211, 181, 220));
+    let chk1 = Rect::from_xywh(1184.0, 268.0, 14.0, 14.0).unwrap();
+    pixmap.fill_rect(chk1, &paint, Transform::identity(), None);
+    paint.set_color(bg_panel);
+    let chk1_lbl = Rect::from_xywh(1206.0, 267.0, 206.0, 16.0).unwrap();
+    pixmap.fill_rect(chk1_lbl, &paint, Transform::identity(), None);
+
+    // Checked toggle 2: Optimize Rapid Travel (TSP Nearest Neighbor)
+    paint.set_color(Color::from_rgba8(32, 211, 181, 220));
+    let chk2 = Rect::from_xywh(1184.0, 296.0, 14.0, 14.0).unwrap();
+    pixmap.fill_rect(chk2, &paint, Transform::identity(), None);
+    paint.set_color(bg_panel);
+    let chk2_lbl = Rect::from_xywh(1206.0, 295.0, 206.0, 16.0).unwrap();
+    pixmap.fill_rect(chk2_lbl, &paint, Transform::identity(), None);
+
+    // Group 3: Layer Laser Operations Table (Y = 350..550)
+    paint.set_color(bg_widget);
+    let layer_box = Rect::from_xywh(1172.0, 350.0, 256.0, 196.0).unwrap();
+    pixmap.fill_rect(layer_box, &paint, Transform::identity(), None);
+    paint.set_color(border);
+    let p_lbox = PathBuilder::from_rect(layer_box);
+    pixmap.stroke_path(&p_lbox, &paint, &stroke_1px, Transform::identity(), None);
+
+    // 3 Layer rows with Ruida standard color dots
+    let layer_rows = [
+        ("Layer 1 (Cut)", Color::from_rgba8(255, 0, 0, 255), 374.0), // Red Cut
+        ("Layer 2 (Score)", Color::from_rgba8(0, 0, 255, 255), 420.0), // Blue Score
+        (
+            "Layer 3 (Engrave)",
+            Color::from_rgba8(0, 170, 0, 255),
+            466.0,
+        ), // Green Engrave
     ];
-    for &(_label, col, y_pos) in &ops_buttons {
-        paint.set_color(col);
-        let b = Rect::from_xywh(1184.0, y_pos, 232.0, 24.0).unwrap();
-        pixmap.fill_rect(b, &paint, Transform::identity(), None);
-        paint.set_color(border);
-        let p = PathBuilder::from_rect(b);
-        pixmap.stroke_path(&p, &paint, &stroke_1px, Transform::identity(), None);
+    for (_lname, dot_col, y_row) in layer_rows {
+        // Row background
+        paint.set_color(bg_panel);
+        let row_r = Rect::from_xywh(1180.0, y_row, 240.0, 40.0).unwrap();
+        pixmap.fill_rect(row_r, &paint, Transform::identity(), None);
+        // Ruida color badge
+        let mut pb_dot = PathBuilder::new();
+        pb_dot.push_circle(1194.0, y_row + 20.0, 7.0);
+        if let Some(p) = pb_dot.finish() {
+            paint.set_color(dot_col);
+            pixmap.fill_path(&p, &paint, FillRule::Winding, Transform::identity(), None);
+        }
+        // Operation pill
+        paint.set_color(bg_widget);
+        let op_pill = Rect::from_xywh(1210.0, y_row + 8.0, 200.0, 24.0).unwrap();
+        pixmap.fill_rect(op_pill, &paint, Transform::identity(), None);
     }
 
-    // Group 2: Parallel Contour Offset Group Box (Y = 320..440)
+    // Group 4: Job Metrics & Export Actions (Y = 556..720)
     paint.set_color(bg_widget);
-    let contour_box = Rect::from_xywh(1172.0, 320.0, 256.0, 116.0).unwrap();
-    pixmap.fill_rect(contour_box, &paint, Transform::identity(), None);
+    let exp_box = Rect::from_xywh(1172.0, 556.0, 256.0, 160.0).unwrap();
+    pixmap.fill_rect(exp_box, &paint, Transform::identity(), None);
     paint.set_color(border);
-    let p_cbox = PathBuilder::from_rect(contour_box);
-    pixmap.stroke_path(&p_cbox, &paint, &stroke_1px, Transform::identity(), None);
+    let p_ebox = PathBuilder::from_rect(exp_box);
+    pixmap.stroke_path(&p_ebox, &paint, &stroke_1px, Transform::identity(), None);
 
-    // Join types: Round (selected), Miter, Bevel
-    paint.set_color(accent);
-    let r_pill = Rect::from_xywh(1230.0, 350.0, 52.0, 22.0).unwrap();
-    pixmap.fill_rect(r_pill, &paint, Transform::identity(), None);
+    // Job Metrics readout
     paint.set_color(bg_panel);
-    let m_pill = Rect::from_xywh(1286.0, 350.0, 50.0, 22.0).unwrap();
-    pixmap.fill_rect(m_pill, &paint, Transform::identity(), None);
-    let bv_pill = Rect::from_xywh(1340.0, 350.0, 50.0, 22.0).unwrap();
-    pixmap.fill_rect(bv_pill, &paint, Transform::identity(), None);
+    let metrics_r = Rect::from_xywh(1184.0, 574.0, 232.0, 42.0).unwrap();
+    pixmap.fill_rect(metrics_r, &paint, Transform::identity(), None);
 
-    // Apply contour button
-    paint.set_color(Color::from_rgba8(32, 211, 181, 160));
-    let apply_c_btn = Rect::from_xywh(1184.0, 390.0, 232.0, 26.0).unwrap();
-    pixmap.fill_rect(apply_c_btn, &paint, Transform::identity(), None);
+    // G-Code Export Button (Glowing teal)
+    paint.set_color(Color::from_rgba8(15, 147, 136, 240));
+    let gcode_btn = Rect::from_xywh(1184.0, 626.0, 232.0, 34.0).unwrap();
+    pixmap.fill_rect(gcode_btn, &paint, Transform::identity(), None);
+    paint.set_color(Color::from_rgba8(32, 211, 181, 255));
+    let p_gc = PathBuilder::from_rect(gcode_btn);
+    pixmap.stroke_path(&p_gc, &paint, &stroke_1px, Transform::identity(), None);
 
-    // Group 3: Vector Text Outlines Group Box (Y = 450..580)
-    paint.set_color(bg_widget);
-    let text_box = Rect::from_xywh(1172.0, 450.0, 256.0, 126.0).unwrap();
-    pixmap.fill_rect(text_box, &paint, Transform::identity(), None);
+    // PLT / HPGL Export Button
+    paint.set_color(Color::from_rgba8(46, 51, 62, 240));
+    let plt_btn = Rect::from_xywh(1184.0, 668.0, 232.0, 30.0).unwrap();
+    pixmap.fill_rect(plt_btn, &paint, Transform::identity(), None);
     paint.set_color(border);
-    let p_tbox = PathBuilder::from_rect(text_box);
-    pixmap.stroke_path(&p_tbox, &paint, &stroke_1px, Transform::identity(), None);
-
-    // Text field & insert button
-    paint.set_color(bg_panel);
-    let tf = Rect::from_xywh(1220.0, 475.0, 196.0, 24.0).unwrap();
-    pixmap.fill_rect(tf, &paint, Transform::identity(), None);
-    paint.set_color(accent);
-    let insert_t_btn = Rect::from_xywh(1184.0, 535.0, 232.0, 26.0).unwrap();
-    pixmap.fill_rect(insert_t_btn, &paint, Transform::identity(), None);
+    let p_plt = PathBuilder::from_rect(plt_btn);
+    pixmap.stroke_path(&p_plt, &paint, &stroke_1px, Transform::identity(), None);
 
     // 7. Central Canvas Area (X = 48..1160, Y = 68..876)
     let canvas_x = 48.0;
@@ -338,6 +427,138 @@ pub fn render_ui_screenshot(output_path: &Path) -> Result<(), String> {
             ..Default::default()
         };
         pixmap.stroke_path(&p, &paint, &s, Transform::identity(), None);
+    }
+
+    // ── Prominent Center Crosshair ⊕ on Selected Gear ─────────────────────
+    let crosshair_col = Color::from_rgba8(6, 182, 212, 255); // Vibrant Cyan (#06b6d4)
+    let mut pb_c_outer = PathBuilder::new();
+    pb_c_outer.push_circle(gear_cx, gear_cy, 10.0);
+    if let Some(p) = pb_c_outer.finish() {
+        paint.set_color(crosshair_col);
+        let s_cross = Stroke {
+            width: 1.8,
+            ..Default::default()
+        };
+        pixmap.stroke_path(&p, &paint, &s_cross, Transform::identity(), None);
+    }
+    // Cardinal hairlines with Corelith-style gap
+    let mut pb_cross_lines = PathBuilder::new();
+    pb_cross_lines.move_to(gear_cx - 18.0, gear_cy);
+    pb_cross_lines.line_to(gear_cx - 3.0, gear_cy);
+    pb_cross_lines.move_to(gear_cx + 3.0, gear_cy);
+    pb_cross_lines.line_to(gear_cx + 18.0, gear_cy);
+    pb_cross_lines.move_to(gear_cx, gear_cy - 18.0);
+    pb_cross_lines.line_to(gear_cx, gear_cy - 3.0);
+    pb_cross_lines.move_to(gear_cx, gear_cy + 3.0);
+    pb_cross_lines.line_to(gear_cx, gear_cy + 18.0);
+    if let Some(p) = pb_cross_lines.finish() {
+        paint.set_color(crosshair_col);
+        let s_cross = Stroke {
+            width: 1.5,
+            ..Default::default()
+        };
+        pixmap.stroke_path(&p, &paint, &s_cross, Transform::identity(), None);
+    }
+    // Center core dot
+    let mut pb_c_dot = PathBuilder::new();
+    pb_c_dot.push_circle(gear_cx, gear_cy, 2.5);
+    if let Some(p) = pb_c_dot.finish() {
+        paint.set_color(Color::WHITE);
+        pixmap.fill_path(&p, &paint, FillRule::Winding, Transform::identity(), None);
+    }
+
+    // ── Dynamic Alignment Guide Rays (b4 algorithm from Corelith Studio) ───
+    // Vertical Ray: Center to Center (Cyan #06b6d4)
+    let mut pb_align_v = PathBuilder::new();
+    pb_align_v.move_to(gear_cx, page_y + 20.0);
+    pb_align_v.line_to(gear_cx, page_y + page_h - 20.0);
+    if let Some(p) = pb_align_v.finish() {
+        paint.set_color(Color::from_rgba8(6, 182, 212, 190));
+        let s_align = Stroke {
+            width: 1.4,
+            dash: tiny_skia::StrokeDash::new(vec![6.0, 4.0], 0.0),
+            ..Default::default()
+        };
+        pixmap.stroke_path(&p, &paint, &s_align, Transform::identity(), None);
+    }
+    // Cyan HUD Tag Pill: "Center to Center"
+    paint.set_color(Color::from_rgba8(6, 182, 212, 230));
+    let hud_c2c = Rect::from_xywh(gear_cx + 8.0, gear_cy - 70.0, 110.0, 18.0).unwrap();
+    pixmap.fill_rect(hud_c2c, &paint, Transform::identity(), None);
+
+    // Horizontal Ray: Edge to Edge (Amber #f59e0b)
+    let mut pb_align_h = PathBuilder::new();
+    pb_align_h.move_to(page_x + 20.0, gear_cy + gear_r_outer);
+    pb_align_h.line_to(page_x + page_w - 20.0, gear_cy + gear_r_outer);
+    if let Some(p) = pb_align_h.finish() {
+        paint.set_color(Color::from_rgba8(245, 158, 11, 180));
+        let s_align = Stroke {
+            width: 1.4,
+            dash: tiny_skia::StrokeDash::new(vec![6.0, 4.0], 0.0),
+            ..Default::default()
+        };
+        pixmap.stroke_path(&p, &paint, &s_align, Transform::identity(), None);
+    }
+    // Amber HUD Tag Pill: "Edge to Edge"
+    paint.set_color(Color::from_rgba8(245, 158, 11, 230));
+    let hud_e2e =
+        Rect::from_xywh(gear_cx + 90.0, gear_cy + gear_r_outer + 4.0, 88.0, 18.0).unwrap();
+    pixmap.fill_rect(hud_e2e, &paint, Transform::identity(), None);
+
+    // ── Laser Toolpath Sequencing & Rapid Travel (Inside-Out Ordering) ────
+    // Rapid Travel 1: Green dashed vector from Home (page_x, page_y) to Inner Hole (gear_cx, gear_cy)
+    let mut pb_rapid1 = PathBuilder::new();
+    pb_rapid1.move_to(page_x + 20.0, page_y + 20.0);
+    pb_rapid1.line_to(gear_cx, gear_cy - 22.0);
+    if let Some(p) = pb_rapid1.finish() {
+        paint.set_color(Color::from_rgba8(16, 185, 129, 200)); // Emerald rapid
+        let s_rapid = Stroke {
+            width: 1.5,
+            dash: tiny_skia::StrokeDash::new(vec![4.0, 4.0], 0.0),
+            ..Default::default()
+        };
+        pixmap.stroke_path(&p, &paint, &s_rapid, Transform::identity(), None);
+    }
+    // Rapid Travel 2: From Inner Hole to Outer Perimeter start
+    let mut pb_rapid2 = PathBuilder::new();
+    pb_rapid2.move_to(gear_cx, gear_cy - 22.0);
+    pb_rapid2.line_to(gear_cx, gear_cy - gear_r_outer);
+    if let Some(p) = pb_rapid2.finish() {
+        paint.set_color(Color::from_rgba8(16, 185, 129, 200));
+        let s_rapid = Stroke {
+            width: 1.5,
+            dash: tiny_skia::StrokeDash::new(vec![4.0, 4.0], 0.0),
+            ..Default::default()
+        };
+        pixmap.stroke_path(&p, &paint, &s_rapid, Transform::identity(), None);
+    }
+
+    // Sequence Badge 1: Inside Hole (Cut FIRST - Depth 1)
+    let mut pb_badge1 = PathBuilder::new();
+    pb_badge1.push_circle(gear_cx - 28.0, gear_cy - 16.0, 10.0);
+    if let Some(p) = pb_badge1.finish() {
+        paint.set_color(Color::from_rgba8(255, 51, 68, 255)); // Cut red badge
+        pixmap.fill_path(&p, &paint, FillRule::Winding, Transform::identity(), None);
+        paint.set_color(Color::WHITE);
+        let s_bw = Stroke {
+            width: 1.5,
+            ..Default::default()
+        };
+        pixmap.stroke_path(&p, &paint, &s_bw, Transform::identity(), None);
+    }
+
+    // Sequence Badge 2: Outer Perimeter (Cut SECOND - Depth 0)
+    let mut pb_badge2 = PathBuilder::new();
+    pb_badge2.push_circle(gear_cx + gear_r_outer + 8.0, gear_cy - 10.0, 10.0);
+    if let Some(p) = pb_badge2.finish() {
+        paint.set_color(Color::from_rgba8(255, 51, 68, 255)); // Cut red badge
+        pixmap.fill_path(&p, &paint, FillRule::Winding, Transform::identity(), None);
+        paint.set_color(Color::WHITE);
+        let s_bw = Stroke {
+            width: 1.5,
+            ..Default::default()
+        };
+        pixmap.stroke_path(&p, &paint, &s_bw, Transform::identity(), None);
     }
 
     // B. Parallel Contour Offset (Phase 4 Contour / Kerf Expansion)
@@ -639,5 +860,15 @@ mod tests {
             "Screenshot file is unexpectedly small"
         );
         let _ = fs::remove_file(test_path);
+
+        // Also save to docs and brain artifact paths
+        let docs_path = std::path::PathBuf::from("../../docs/screenshots/vdraw_laser_cam_snap.png");
+        if let Some(parent) = docs_path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        let _ = render_ui_screenshot(&docs_path);
+
+        let artifact_path = std::path::PathBuf::from("/home/sohil/.gemini/antigravity/brain/e4ccf3ac-ff4c-47aa-8da4-36d4644060d8/vdraw_ui_laser_cam_snap.png");
+        let _ = render_ui_screenshot(&artifact_path);
     }
 }

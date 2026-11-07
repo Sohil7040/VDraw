@@ -52,6 +52,7 @@ impl Tool for EraserTool {
         _doc: &mut Document,
         _undo: &mut UndoStack,
         event: &PointerEvent,
+        _snap: Option<&core_snap::SnapSolver>,
     ) -> bool {
         let pos = event.pos();
         self.cursor_pos = Some(pos);
@@ -65,6 +66,7 @@ impl Tool for EraserTool {
         _doc: &mut Document,
         _undo: &mut UndoStack,
         event: &PointerEvent,
+        _snap: Option<&core_snap::SnapSolver>,
     ) -> bool {
         let pos = event.pos();
         self.cursor_pos = Some(pos);

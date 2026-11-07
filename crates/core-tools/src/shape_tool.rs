@@ -148,6 +148,7 @@ impl Tool for ShapeTool {
         doc: &mut Document,
         undo: &mut UndoStack,
         event: &PointerEvent,
+        _snap: Option<&core_snap::SnapSolver>,
     ) -> bool {
         let tolerance = 3.0; // 3 mm hit radius in world units
         let click_pos = event.world_pos;
@@ -326,6 +327,7 @@ impl Tool for ShapeTool {
         doc: &mut Document,
         _undo: &mut UndoStack,
         event: &PointerEvent,
+        _snap: Option<&core_snap::SnapSolver>,
     ) -> bool {
         match &self.drag_target {
             DragTarget::Anchor {

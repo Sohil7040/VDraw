@@ -21,4 +21,6 @@ pub use grid::{GridConfig, GridStyle};
 pub use guideline::{Guideline, GuidelineId, GuidelineOrientation};
 pub use solver::{SnapConfig, SnapSolver};
 pub use spatial_index::{IndexedShape, SpatialIndex};
-pub use target::{AlignmentLine, DynamicRay, SnapResult, SnapTarget, SnapTargetKind};
+pub use target::{
+    AlignmentLine, DynamicRay, SnapResult, SnapTarget, SnapTargetKind, TransformSnapResult,
+};

@@ -828,7 +828,9 @@ dependencies = [
 name = "core-cam"
 version = "0.1.0"
 dependencies = [
+ "core-doc",
  "core-geom",
+ "serde",
 ]
 
 [[package]]

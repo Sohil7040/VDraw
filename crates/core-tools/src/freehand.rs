@@ -45,6 +45,7 @@ impl Tool for FreehandTool {
         _doc: &mut Document,
         _undo: &mut UndoStack,
         event: &PointerEvent,
+        _snap: Option<&core_snap::SnapSolver>,
     ) -> bool {
         self.is_drawing = true;
         self.points.clear();
@@ -57,6 +58,7 @@ impl Tool for FreehandTool {
         _doc: &mut Document,
         _undo: &mut UndoStack,
         event: &PointerEvent,
+        _snap: Option<&core_snap::SnapSolver>,
     ) -> bool {
         if self.is_drawing {
             if let Some(&last) = self.points.last() {

@@ -47,6 +47,7 @@ impl Tool for SpiralTool {
         _doc: &mut Document,
         _undo: &mut UndoStack,
         event: &PointerEvent,
+        _snap: Option<&core_snap::SnapSolver>,
     ) -> bool {
         self.is_dragging = true;
         self.start_pos = Some(event.pos());
@@ -59,6 +60,7 @@ impl Tool for SpiralTool {
         _doc: &mut Document,
         _undo: &mut UndoStack,
         event: &PointerEvent,
+        _snap: Option<&core_snap::SnapSolver>,
     ) -> bool {
         if self.is_dragging {
             self.current_pos = Some(event.pos());

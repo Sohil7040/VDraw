@@ -46,6 +46,8 @@ pub struct CanvasState {
     pub active_guideline_drag: Option<GuidelineDrag>,
     /// Cached latest snap result for visual rendering.
     pub last_snap: Option<SnapResult>,
+    /// Laser CAM production and toolpath simulation configuration.
+    pub cam_config: core_cam::LaserProductionConfig,
 }
 
 impl Default for CanvasState {
@@ -59,6 +61,7 @@ impl Default for CanvasState {
             show_rulers: true,
             active_guideline_drag: None,
             last_snap: None,
+            cam_config: core_cam::LaserProductionConfig::default(),
         }
     }
 }
@@ -180,7 +183,12 @@ pub fn show_canvas(
     // 8. Snapping indicators, dynamic guides, and alignment lines
     draw_snap_overlays(&painter, state, viewport);
 
-    // 9. Rulers
+    // 9. Laser Toolpath Simulation & Preview Overlay
+    if state.cam_config.preview {
+        draw_toolpath_preview(&painter, state, doc, viewport);
+    }
+
+    // 10. Rulers
     if state.show_rulers {
         draw_rulers(&painter, state, avail, viewport);
     }
@@ -304,10 +312,12 @@ fn handle_input(
     let primary = resp.dragged_by(egui::PointerButton::Primary)
         || resp.clicked_by(egui::PointerButton::Primary);
 
+    let page_dim = doc.active_page().map(|p| (p.width_mm, p.height_mm));
     let snap_res = snap_solver.snap_point(world_pos, (state.zoom * PX_PER_MM) as f64, None, &[]);
 
     let event = PointerEvent::new(world_pos, current_pos, modifiers, primary)
-        .with_snapped_pos(snap_res.point);
+        .with_snapped_pos(snap_res.point)
+        .with_viewport((state.zoom * PX_PER_MM) as f64, page_dim);
 
     state.last_snap = if snap_res.snapped {
         Some(snap_res)
@@ -319,11 +329,11 @@ fn handle_input(
     if resp.drag_started_by(egui::PointerButton::Primary)
         || resp.clicked_by(egui::PointerButton::Primary)
     {
-        tools.on_pointer_down(doc, undo, &event);
+        tools.on_pointer_down(doc, undo, &event, Some(snap_solver));
     }
 
     if resp.dragged_by(egui::PointerButton::Primary) || resp.hovered() {
-        tools.on_pointer_move(doc, undo, &event);
+        tools.on_pointer_move(doc, undo, &event, Some(snap_solver));
     }
 
     if resp.drag_stopped_by(egui::PointerButton::Primary)
@@ -920,4 +930,94 @@ fn draw_rulers(painter: &Painter, state: &CanvasState, full_rect: Rect, viewport
             );
         }
     }
+}
+
+// ─── Laser CAM Toolpath Simulation & Preview Overlay ─────────────────────────
+
+fn draw_toolpath_preview(painter: &Painter, state: &CanvasState, doc: &Document, viewport: Rect) {
+    let plan = core_cam::generate_job_plan(doc, &state.cam_config);
+    let origin = viewport.min;
+
+    // 1. Draw Rapid Travel Vectors (laser off - dashed amber lines)
+    for (from, to) in &plan.rapid_moves {
+        let s_from = state.world_to_screen(*from, origin);
+        let s_to = state.world_to_screen(*to, origin);
+
+        let stroke = Stroke::new(1.2, Color32::from_rgba_unmultiplied(245, 158, 11, 200));
+        painter.line_segment([s_from, s_to], stroke);
+
+        // Direction arrowhead halfway along vector
+        let dir = (s_to - s_from).normalized();
+        if dir.length_sq() > 0.01 {
+            let mid = (s_from + s_to.to_vec2()) * 0.5;
+            let perp = Vec2::new(-dir.y, dir.x) * 3.5;
+            let tip = mid + dir * 4.5;
+            painter.line_segment([mid - dir * 4.5 + perp, tip], stroke);
+            painter.line_segment([mid - dir * 4.5 - perp, tip], stroke);
+        }
+    }
+
+    // 2. Draw Machining Toolpaths & Sequence Badges
+    for tp in &plan.toolpaths {
+        if tp.points.len() < 2 {
+            continue;
+        }
+        let col = tp.mode.color_rgb();
+        let stroke_col = Color32::from_rgb(col[0], col[1], col[2]);
+        let cut_stroke = Stroke::new(2.4, stroke_col);
+
+        let screen_pts: Vec<Pos2> = tp
+            .points
+            .iter()
+            .map(|&p| state.world_to_screen(p, origin))
+            .collect();
+
+        for i in 1..screen_pts.len() {
+            painter.line_segment([screen_pts[i - 1], screen_pts[i]], cut_stroke);
+        }
+        if tp.closed && screen_pts.len() >= 3 {
+            painter.line_segment([*screen_pts.last().unwrap(), screen_pts[0]], cut_stroke);
+        }
+
+        // Draw Sequence Badge (1, 2, 3...) at cut start point
+        if state.cam_config.show_sequence_badges {
+            let start_s = screen_pts[0];
+            let badge_radius = 8.5;
+            painter.circle_filled(start_s, badge_radius, Color32::from_black_alpha(230));
+            painter.circle_stroke(start_s, badge_radius, Stroke::new(1.5, stroke_col));
+
+            let num_text = format!("{}", tp.sequence_index);
+            painter.text(
+                start_s,
+                egui::Align2::CENTER_CENTER,
+                num_text,
+                egui::FontId::proportional(10.0),
+                Color32::WHITE,
+            );
+        }
+    }
+
+    // 3. Floating HUD Banner: Laser Preview Info
+    let banner_rect =
+        Rect::from_min_size(viewport.min + Vec2::new(16.0, 16.0), Vec2::new(280.0, 48.0));
+    painter.rect_filled(banner_rect, 6.0, Color32::from_black_alpha(225));
+    painter.rect_stroke(
+        banner_rect,
+        6.0,
+        Stroke::new(1.0, Color32::from_rgb(15, 147, 136)),
+        egui::StrokeKind::Outside,
+    );
+    painter.text(
+        banner_rect.min + Vec2::new(10.0, 8.0),
+        egui::Align2::LEFT_TOP,
+        format!(
+            "▷ TOOLPATH PREVIEW ({} paths)\nCut: {:.1} mm · Rapid: {:.1} mm · Est: {:.1}s",
+            plan.toolpaths.len(),
+            plan.total_cut_length_mm,
+            plan.total_rapid_length_mm,
+            plan.estimated_duration_s
+        ),
+        egui::FontId::proportional(11.0),
+        Color32::WHITE,
+    );
 }
