@@ -6,6 +6,16 @@ pub mod screenshot;
 mod theme;
 mod workspace;
 
+fn load_app_icon() -> Option<egui::IconData> {
+    let png_bytes = include_bytes!("../../../assets/icons/icon.png");
+    let pixmap = tiny_skia::Pixmap::decode_png(png_bytes).ok()?;
+    Some(egui::IconData {
+        rgba: pixmap.data().to_vec(),
+        width: pixmap.width(),
+        height: pixmap.height(),
+    })
+}
+
 fn main() -> eframe::Result {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
@@ -25,11 +35,17 @@ fn main() -> eframe::Result {
         }
     }
 
+    let mut viewport = egui::ViewportBuilder::default()
+        .with_title("VDraw")
+        .with_inner_size([1440.0, 900.0])
+        .with_min_inner_size([800.0, 600.0]);
+
+    if let Some(icon) = load_app_icon() {
+        viewport = viewport.with_icon(icon);
+    }
+
     let native_options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_title("VDraw")
-            .with_inner_size([1440.0, 900.0])
-            .with_min_inner_size([800.0, 600.0]),
+        viewport,
         renderer: eframe::Renderer::Wgpu,
         ..Default::default()
     };

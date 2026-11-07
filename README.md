@@ -1,6 +1,18 @@
-# VDraw
+<p align="center">
+  <img src="assets/logos/vdraw_wordmark.png" alt="VDraw Logo" width="600"/>
+</p>
 
-**VDraw** is a professional 2D vector illustration, CAD, and laser-CAM application built in **pure Rust**, featuring a modern desktop interface and real-time GPU-accelerated canvas.
+<p align="center">
+  <b>Professional 2D Vector Illustration, CAD &amp; Laser-CAM in Pure Rust</b>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/language-100%25%20Rust-orange.svg" alt="Pure Rust"/>
+  <img src="https://img.shields.io/badge/gui-eframe%20%2F%20egui-blue.svg" alt="egui"/>
+  <img src="https://img.shields.io/badge/license-MIT%2FApache--2.0-green.svg" alt="License"/>
+</p>
+
+---
 
 ![VDraw Phase 3 UI](docs/vdraw_ui_phase3.png)
 

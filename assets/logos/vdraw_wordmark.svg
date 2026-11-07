@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 320" width="1000" height="320">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="wmBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#141824"/>
+      <stop offset="100%" stop-color="#0A0D14"/>
+    </linearGradient>
+
+    <!-- Icon Gradients from original -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A"/>
+      <stop offset="50%" stop-color="#1E1B4B"/>
+      <stop offset="100%" stop-color="#090D16"/>
+    </linearGradient>
+
+    <linearGradient id="leftWingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="45%" stop-color="#0284C7"/>
+      <stop offset="100%" stop-color="#1D4ED8"/>
+    </linearGradient>
+
+    <linearGradient id="leftWingBevel" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#BAE6FD" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#0284C7" stop-opacity="0.1"/>
+    </linearGradient>
+
+    <linearGradient id="rightWingGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#E11D48"/>
+      <stop offset="40%" stop-color="#F43F5E"/>
+      <stop offset="80%" stop-color="#FB923C"/>
+      <stop offset="100%" stop-color="#FBBF24"/>
+    </linearGradient>
+
+    <radialGradient id="apexGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#38BDF8" stop-opacity="0.0"/>
+    </radialGradient>
+
+    <filter id="iconShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1000" height="320" rx="24" fill="url(#wmBg)" stroke="#232938" stroke-width="2"/>
+
+  <!-- Icon scaled to 240x240 inside (x=40, y=40) -->
+  <g transform="translate(40, 40) scale(0.46875)" filter="url(#iconShadow)">
+    <rect x="24" y="24" width="464" height="464" rx="108" ry="108" fill="url(#bgGrad)"/>
+    <rect x="24" y="24" width="464" height="464" rx="108" ry="108" fill="none" stroke="#38BDF8" stroke-width="2.5" stroke-opacity="0.25"/>
+
+    <g opacity="0.18">
+      <circle cx="256" cy="260" r="170" fill="none" stroke="#38BDF8" stroke-width="1.5" stroke-dasharray="6 6"/>
+      <circle cx="256" cy="260" r="105" fill="none" stroke="#38BDF8" stroke-width="1.2"/>
+      <line x1="86" y1="260" x2="426" y2="260" stroke="#38BDF8" stroke-width="1" stroke-dasharray="4 4"/>
+      <line x1="256" y1="90" x2="256" y2="430" stroke="#38BDF8" stroke-width="1" stroke-dasharray="4 4"/>
+    </g>
+
+    <circle cx="256" cy="390" r="80" fill="url(#apexGlow)"/>
+
+    <g>
+      <path d="M 108 120 L 196 120 L 256 365 L 208 395 L 90 148 Z" fill="url(#leftWingGrad)"/>
+      <path d="M 108 120 L 126 120 L 222 378 L 208 395 Z" fill="url(#leftWingBevel)"/>
+      <path d="M 200 380 L 256 414 L 404 120 L 320 120 L 234 320 Z" fill="url(#rightWingGrad)"/>
+      <path d="M 208 395 L 256 414 L 256 365 Z" fill="#0C4A6E" opacity="0.65"/>
+    </g>
+
+    <circle cx="108" cy="120" r="7" fill="#FFFFFF" stroke="#0284C7" stroke-width="2.5"/>
+    <line x1="360" y1="80" x2="444" y2="160" stroke="#FBBF24" stroke-width="2" stroke-dasharray="3 3"/>
+    <circle cx="360" cy="80" r="5" fill="#FBBF24"/>
+    <circle cx="444" cy="160" r="5" fill="#FBBF24"/>
+    <rect x="395" y="111" width="18" height="18" rx="2" fill="#FFFFFF" stroke="#F43F5E" stroke-width="2.5"/>
+
+    <rect x="246" y="404" width="20" height="20" rx="3" fill="#FFFFFF" stroke="#38BDF8" stroke-width="3"/>
+    <rect x="251" y="409" width="10" height="10" rx="1" fill="#0284C7"/>
+  </g>
+
+  <!-- Typography on Right -->
+  <g transform="translate(320, 95)">
+    <!-- Main App Name -->
+    <text x="0" y="80" font-family="system-ui, -apple-system, sans-serif" font-size="92" font-weight="900" letter-spacing="-1">
+      <tspan fill="#38BDF8">V</tspan><tspan fill="#F8FAFC">Draw</tspan>
+    </text>
+
+    <!-- Subtitle / Brand Tagline -->
+    <text x="5" y="125" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="700" fill="#94A3B8" letter-spacing="4">
+      PROFESSIONAL 2D VECTOR &amp; LASER-CAM
+    </text>
+
+    <!-- Technology Pills -->
+    <g transform="translate(5, 145)">
+      <rect x="0" y="0" width="110" height="24" rx="12" fill="#38BDF8" fill-opacity="0.15" stroke="#38BDF8" stroke-width="1"/>
+      <text x="55" y="16" font-family="system-ui, sans-serif" font-size="11" font-weight="700" fill="#38BDF8" text-anchor="middle">PURE RUST</text>
+
+      <rect x="120" y="0" width="110" height="24" rx="12" fill="#F43F5E" fill-opacity="0.15" stroke="#F43F5E" stroke-width="1"/>
+      <text x="175" y="16" font-family="system-ui, sans-serif" font-size="11" font-weight="700" fill="#F43F5E" text-anchor="middle">CAD / CAM</text>
+
+      <rect x="240" y="0" width="110" height="24" rx="12" fill="#FBBF24" fill-opacity="0.15" stroke="#FBBF24" stroke-width="1"/>
+      <text x="295" y="16" font-family="system-ui, sans-serif" font-size="11" font-weight="700" fill="#FBBF24" text-anchor="middle">HIGH PRECISION</text>
+    </g>
+  </g>
+</svg>
