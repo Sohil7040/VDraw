@@ -89,33 +89,48 @@ where `PX_PER_MM = 96.0 / 25.4 ≈ 3.7795`
 - Line Cap (`Butt`, `Round`, `Square`) and Line Join (`Miter`, `Round`, `Bevel`) configuration.
 - Undoable style synchronization via `SetStyleCommand`.
 
+### 6. 2D Vector Boolean & Shaping Engine (`core-boolean`)
+- Pure-Rust 2D clipping and polygon operations via `clipper2-rs` with integer/float conversions operating at 0.1-micron precision ($10^{-4}\text{ mm}$).
+- **8 Operations:** Weld (Union), Trim (Difference), Intersect, Exclude (XOR), Front-Minus-Back, Back-Minus-Front, Create Boundary, and Simplify.
+- **Knife Tool (`K`):** Slit subtraction slicing for closed shapes with auto-close; exact segment intersection splitting for open paths.
+- **Eraser Tool (`X`):** Swept circular punch & continuous subtraction brush with real-time radius control ($1..60\text{ mm}$).
+- **Virtual Segment Delete (`D`):** Subpath segment detection bounded between intersections across all shapes with instant trimming.
+- **Contour & Offset:** Parallel insets/outsets for laser kerf compensation with `Round`, `Miter`, and `Bevel` corner joins.
+- **TrueType Font Outlines (`T`):** OpenType/TrueType parsing with exact zero-error quadratic-to-cubic degree elevation.
+
+### 7. Sleek Desktop UI/UX Architecture (`app`)
+- **Startup Welcome Dialog:** Pre-configured laser & CAD document presets (A4, 600×400 mm, 900×600 mm, CAD Square, Custom Bed), branded hero logo, and shortcuts guide.
+- **Shaping Dock Tab:** Instant one-click Boolean actions, contour offsets, and text placement.
+- **Dynamic Property Bar:** Contextual quick booleans when 2+ shapes selected (`⊞ Weld`, `⊟ Trim`, `⊠ Intersect`, `⊞̷ Exclude`, `⬚ Boundary`, `⤢ Contour`).
+- **HUD Toast Notifications:** Animated floating notification pill with smooth fade feedback.
+
 ## Panel Layout
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│  Menu bar                                            │
+│  Menu bar (File · Edit · Object · View · Tools · Help)│
 ├──────────────────────────────────────────────────────┤
-│  Property bar (context tool options)                 │
+│  Property bar (context tool options & quick Booleans)│
 ├────────┬─────────────────────────────────┬───────────┤
 │        │                                 │           │
 │  Tool  │   Canvas (pan/zoom/rulers/grid) │  Right    │
-│  bar   │                                 │  Dock     │
+│  bar   │   Overlays: Knife, Eraser, Trim │  Dock     │
 │        │                                 │  (tabs)   │
 │        │                                 │           │
 ├────────┴─────────────────────────────────┴───────────┤
-│  Status bar (coords · zoom · snap toggles)           │
+│  Status bar (coords · zoom · snap toggles · HUD toast)│
 └──────────────────────────────────────────────────────┘
 ```
 
 ## Phase Roadmap
 
-| Phase | Milestone |
-|---|---|
-| **Phase 0** | Workspace scaffold, CI, theme, empty canvas with rulers, pan/zoom, dock layout |
-| **Phase 1** | core-geom and core-doc with unit tests, Rect/Ellipse/Line/Pen tools, Pick tool, undo/redo, selection |
-| **Phase 2** | Shape/Node tool, node types, curve editing, Freehand fitting, Polygon/Star/Spiral, fill and stroke panel |
-| **Phase 3** | Snapping system, R*-tree spatial index (0.0055 ms on 50k shapes), dynamic guides, alignment guides, rulers (Completed) |
-| **Phase 4** | Booleans, Knife, Eraser, Virtual Segment Delete, offset/contour, text to outlines |
-| **Phase 5** | Laser CAM pipeline, profiles, preview, HPGL/G-code/SVG export |
-| **Phase 6** | SVG/DXF IO, native format, PDF/PNG export, dimensions and callouts |
-| **Phase 7** | Performance, polish, onboarding, packaging (AppImage, .deb, Flatpak), documentation |
+| Phase | Milestone | Status |
+|---|---|---|
+| **Phase 0** | Workspace scaffold, CI, theme, empty canvas with rulers, pan/zoom, dock layout | Completed |
+| **Phase 1** | core-geom and core-doc with unit tests, Rect/Ellipse/Line/Pen tools, Pick tool, undo/redo, selection | Completed |
+| **Phase 2** | Shape/Node tool, node types, curve editing, Freehand fitting, Polygon/Star/Spiral, fill and stroke panel | Completed |
+| **Phase 3** | Snapping system, R*-tree spatial index (0.0055 ms on 50k shapes), dynamic guides, alignment guides, rulers | Completed |
+| **Phase 4** | Booleans, Knife, Eraser, Virtual Segment Delete, offset/contour, text to outlines, sleek UI/UX overhaul | Completed |
+| **Phase 5** | Laser CAM pipeline, profiles, preview, HPGL/G-code/SVG export | Next |
+| **Phase 6** | SVG/DXF IO, native format, PDF/PNG export, dimensions and callouts | Planned |
+| **Phase 7** | Performance, polish, onboarding, packaging (AppImage, .deb, Flatpak), documentation | Planned |

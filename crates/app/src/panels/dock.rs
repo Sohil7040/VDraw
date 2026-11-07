@@ -1,5 +1,8 @@
 //! Docking system for the right panel area.
 
+use super::boolean_panel::BooleanPanelState;
+use super::toast::ToastManager;
+
 /// Which tab is active in the right dock.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DockTab {
@@ -7,6 +10,7 @@ pub enum DockTab {
     Objects,
     Properties,
     Colors,
+    Boolean,
     Align,
     Laser,
 }
@@ -17,6 +21,7 @@ impl DockTab {
             DockTab::Objects => "Objects",
             DockTab::Properties => "Properties",
             DockTab::Colors => "Colors",
+            DockTab::Boolean => "Shaping",
             DockTab::Align => "Align",
             DockTab::Laser => "Laser",
         }
@@ -26,15 +31,17 @@ impl DockTab {
         DockTab::Objects,
         DockTab::Properties,
         DockTab::Colors,
+        DockTab::Boolean,
         DockTab::Align,
         DockTab::Laser,
     ];
 }
 
 /// The state of the right-side dock panel system.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default)]
 pub struct DockState {
     pub active_tab: DockTab,
+    pub boolean_state: BooleanPanelState,
 }
 
 /// Show the dock tab bar and return the active tab.
@@ -61,9 +68,10 @@ pub fn show_dock_tabs(ui: &mut egui::Ui, state: &mut DockState) {
 /// Show the content area for the currently active dock tab.
 pub fn show_dock_content(
     ui: &mut egui::Ui,
-    state: &DockState,
+    state: &mut DockState,
     doc: &mut core_doc::Document,
     undo: &mut core_doc::UndoStack,
+    toast: &mut ToastManager,
 ) {
     match state.active_tab {
         DockTab::Objects => {
@@ -74,6 +82,15 @@ pub fn show_dock_content(
         }
         DockTab::Colors => {
             super::fill_stroke::show_fill_stroke_panel(ui, doc, undo);
+        }
+        DockTab::Boolean => {
+            super::boolean_panel::show_boolean_panel(
+                ui,
+                &mut state.boolean_state,
+                doc,
+                undo,
+                toast,
+            );
         }
         DockTab::Align => {
             show_align_panel(ui);

@@ -7,4 +7,5 @@ edition = "2021"
 core-geom = { path = "../core-geom" }
 core-doc = { path = "../core-doc" }
 core-snap = { path = "../core-snap" }
+core-boolean = { path = "../core-boolean" }
 egui = { workspace = true }

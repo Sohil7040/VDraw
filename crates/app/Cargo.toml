@@ -13,6 +13,7 @@ core-doc = { path = "../core-doc" }
 core-snap = { path = "../core-snap" }
 core-tools = { path = "../core-tools" }
 core-cam = { path = "../core-cam" }
+core-boolean = { path = "../core-boolean" }
 eframe = { workspace = true }
 egui = { workspace = true }
 egui_extras = { workspace = true }

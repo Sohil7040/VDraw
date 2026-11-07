@@ -1,8 +1,10 @@
 //! Tool state machine and interactive tool implementations for VDraw.
 
 pub mod ellipse;
+pub mod eraser;
 pub mod event;
 pub mod freehand;
+pub mod knife;
 pub mod line;
 pub mod pen;
 pub mod pick;
@@ -11,11 +13,15 @@ pub mod rectangle;
 pub mod shape_tool;
 pub mod spiral;
 pub mod star;
+pub mod text_tool;
 pub mod tool;
+pub mod virtual_segment_tool;
 
 pub use ellipse::EllipseTool;
+pub use eraser::EraserTool;
 pub use event::{ModifiersState, PointerEvent};
 pub use freehand::FreehandTool;
+pub use knife::{KnifeMode, KnifeTool};
 pub use line::LineTool;
 pub use pen::PenTool;
 pub use pick::PickTool;
@@ -24,7 +30,9 @@ pub use rectangle::RectangleTool;
 pub use shape_tool::{SelectedNode, ShapeTool};
 pub use spiral::SpiralTool;
 pub use star::StarTool;
+pub use text_tool::TextTool;
 pub use tool::{Tool, ToolId};
+pub use virtual_segment_tool::VirtualSegmentDeleteTool;
 
 use core_doc::{Document, UndoStack};
 use core_geom::Point2;
@@ -72,6 +80,10 @@ impl ToolManager {
             ToolId::Polygon => Box::new(PolygonTool::new()),
             ToolId::Star => Box::new(StarTool::new()),
             ToolId::Spiral => Box::new(SpiralTool::new()),
+            ToolId::Knife => Box::new(KnifeTool::new()),
+            ToolId::Eraser => Box::new(EraserTool::new()),
+            ToolId::VirtualSegmentDelete => Box::new(VirtualSegmentDeleteTool::new()),
+            ToolId::Text => Box::new(TextTool::new()),
             _ => Box::new(PickTool::new()),
         };
     }
@@ -84,8 +96,48 @@ impl ToolManager {
         self.active_tool.as_mut()
     }
 
+    pub fn shape_tool(&self) -> Option<&ShapeTool> {
+        self.active_tool.as_any().downcast_ref::<ShapeTool>()
+    }
+
     pub fn shape_tool_mut(&mut self) -> Option<&mut ShapeTool> {
         self.active_tool.as_any_mut().downcast_mut::<ShapeTool>()
+    }
+
+    pub fn knife_tool(&self) -> Option<&KnifeTool> {
+        self.active_tool.as_any().downcast_ref::<KnifeTool>()
+    }
+
+    pub fn knife_tool_mut(&mut self) -> Option<&mut KnifeTool> {
+        self.active_tool.as_any_mut().downcast_mut::<KnifeTool>()
+    }
+
+    pub fn eraser_tool(&self) -> Option<&EraserTool> {
+        self.active_tool.as_any().downcast_ref::<EraserTool>()
+    }
+
+    pub fn eraser_tool_mut(&mut self) -> Option<&mut EraserTool> {
+        self.active_tool.as_any_mut().downcast_mut::<EraserTool>()
+    }
+
+    pub fn text_tool(&self) -> Option<&TextTool> {
+        self.active_tool.as_any().downcast_ref::<TextTool>()
+    }
+
+    pub fn text_tool_mut(&mut self) -> Option<&mut TextTool> {
+        self.active_tool.as_any_mut().downcast_mut::<TextTool>()
+    }
+
+    pub fn virtual_segment_tool(&self) -> Option<&VirtualSegmentDeleteTool> {
+        self.active_tool
+            .as_any()
+            .downcast_ref::<VirtualSegmentDeleteTool>()
+    }
+
+    pub fn virtual_segment_tool_mut(&mut self) -> Option<&mut VirtualSegmentDeleteTool> {
+        self.active_tool
+            .as_any_mut()
+            .downcast_mut::<VirtualSegmentDeleteTool>()
     }
 
     pub fn polygon_tool_mut(&mut self) -> Option<&mut PolygonTool> {

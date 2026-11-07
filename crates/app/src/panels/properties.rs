@@ -1,9 +1,11 @@
 //! Top property bar — context-sensitive tool and selection options.
 
+use crate::panels::toast::ToastManager;
 use crate::theme;
+use core_boolean::{apply_boolean_to_document, apply_contour_to_document, BooleanOp, ContourJoin};
 use core_doc::{Document, ModifyShapeKindCommand, ShapeKind, UndoStack};
 use core_geom::NodeType;
-use core_tools::{ToolId, ToolManager};
+use core_tools::{KnifeMode, ToolId, ToolManager};
 
 /// Show the property bar at the top of the workspace.
 pub fn show_prop_bar(
@@ -11,6 +13,7 @@ pub fn show_prop_bar(
     doc: &mut Document,
     undo: &mut UndoStack,
     tool_mgr: &mut ToolManager,
+    toast: &mut ToastManager,
 ) {
     ui.set_height(theme::PROPBAR_HEIGHT);
     ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
@@ -53,6 +56,70 @@ pub fn show_prop_bar(
                                 .italics(),
                         );
                     }
+                }
+            }
+            ToolId::Knife => {
+                ui.label(
+                    egui::RichText::new("⚔ Knife Tool")
+                        .color(theme::ACCENT)
+                        .strong(),
+                );
+                ui.separator();
+                if let Some(knife) = tool_mgr.knife_tool_mut() {
+                    ui.selectable_value(&mut knife.mode, KnifeMode::Straight, "Straight Cut");
+                    ui.selectable_value(&mut knife.mode, KnifeMode::Freehand, "Freehand Cut");
+                    ui.separator();
+                    ui.checkbox(&mut knife.auto_close, "Auto-close Slices");
+                }
+            }
+            ToolId::Eraser => {
+                ui.label(
+                    egui::RichText::new("⌫ Eraser Tool")
+                        .color(theme::ACCENT)
+                        .strong(),
+                );
+                ui.separator();
+                if let Some(eraser) = tool_mgr.eraser_tool_mut() {
+                    ui.label("Radius:");
+                    ui.add(
+                        egui::DragValue::new(&mut eraser.radius)
+                            .speed(0.5)
+                            .range(1.0..=60.0)
+                            .suffix(" mm"),
+                    );
+                }
+            }
+            ToolId::VirtualSegmentDelete => {
+                ui.label(
+                    egui::RichText::new("✂ Virtual Segment Delete")
+                        .color(theme::ACCENT)
+                        .strong(),
+                );
+                ui.separator();
+                ui.label(
+                    egui::RichText::new("Click any path segment between intersections to auto-trim")
+                        .color(theme::TEXT_SECONDARY)
+                        .small(),
+                );
+            }
+            ToolId::Text => {
+                ui.label(
+                    egui::RichText::new("T Text Outlines")
+                        .color(theme::ACCENT)
+                        .strong(),
+                );
+                ui.separator();
+                if let Some(text_tool) = tool_mgr.text_tool_mut() {
+                    ui.label("Text:");
+                    ui.text_edit_singleline(&mut text_tool.pending_text);
+                    ui.separator();
+                    ui.label("Font Size:");
+                    ui.add(
+                        egui::DragValue::new(&mut text_tool.font_size_mm)
+                            .speed(1.0)
+                            .range(4.0..=120.0)
+                            .suffix(" mm"),
+                    );
                 }
             }
             ToolId::Polygon => {
@@ -132,7 +199,7 @@ pub fn show_prop_bar(
 
         ui.separator();
 
-        // ── 2. Selection Geometry Information ────────────────────────────────
+        // ── 2. Selection Geometry & Quick Boolean Actions ───────────────────
         let sel_count = doc.selection.len();
         if sel_count == 0 {
             ui.label(
@@ -159,11 +226,78 @@ pub fn show_prop_bar(
 
             if let Some(bounds) = doc.selection_bounds() {
                 ui.separator();
-                ui.monospace(format!("X: {:>6.2}", bounds.min_x));
-                ui.monospace(format!("Y: {:>6.2}", bounds.min_y));
-                ui.separator();
                 ui.monospace(format!("W: {:>6.2}", bounds.width()));
                 ui.monospace(format!("H: {:>6.2}", bounds.height()));
+            }
+
+            // Quick Boolean Actions Bar (when 2+ shapes selected)
+            if sel_count >= 2 {
+                ui.separator();
+                if ui
+                    .button("⊞ Weld")
+                    .on_hover_text("Weld overlapping shapes into one unified path")
+                    .clicked()
+                {
+                    match apply_boolean_to_document(doc, undo, BooleanOp::Weld, true) {
+                        Ok(msg) => toast.show(format!("✓ {}", msg)),
+                        Err(e) => toast.show(format!("⚠ Weld error: {}", e)),
+                    }
+                }
+                if ui
+                    .button("⊟ Trim")
+                    .on_hover_text("Subtract front shapes from the back shape")
+                    .clicked()
+                {
+                    match apply_boolean_to_document(doc, undo, BooleanOp::Trim, true) {
+                        Ok(msg) => toast.show(format!("✓ {}", msg)),
+                        Err(e) => toast.show(format!("⚠ Trim error: {}", e)),
+                    }
+                }
+                if ui
+                    .button("⊠ Intersect")
+                    .on_hover_text("Keep only overlapping intersection region")
+                    .clicked()
+                {
+                    match apply_boolean_to_document(doc, undo, BooleanOp::Intersect, true) {
+                        Ok(msg) => toast.show(format!("✓ {}", msg)),
+                        Err(e) => toast.show(format!("⚠ Intersect error: {}", e)),
+                    }
+                }
+                if ui
+                    .button("⊞̷ Exclude")
+                    .on_hover_text("XOR: Exclude overlapping regions")
+                    .clicked()
+                {
+                    match apply_boolean_to_document(doc, undo, BooleanOp::Exclude, true) {
+                        Ok(msg) => toast.show(format!("✓ {}", msg)),
+                        Err(e) => toast.show(format!("⚠ Exclude error: {}", e)),
+                    }
+                }
+                if ui
+                    .button("⬚ Boundary")
+                    .on_hover_text("Create outer perimeter silhouette")
+                    .clicked()
+                {
+                    match apply_boolean_to_document(doc, undo, BooleanOp::CreateBoundary, true) {
+                        Ok(msg) => toast.show(format!("✓ {}", msg)),
+                        Err(e) => toast.show(format!("⚠ Boundary error: {}", e)),
+                    }
+                }
+            }
+
+            // Quick Parallel Contour Offset (when 1+ shape selected)
+            if sel_count >= 1 {
+                ui.separator();
+                if ui
+                    .button("⤢ Contour +3mm")
+                    .on_hover_text("Generate a +3.0 mm parallel laser kerf contour")
+                    .clicked()
+                {
+                    match apply_contour_to_document(doc, undo, 3.0, ContourJoin::Round) {
+                        Ok(msg) => toast.show(format!("✓ {}", msg)),
+                        Err(e) => toast.show(format!("⚠ Contour error: {}", e)),
+                    }
+                }
             }
 
             // Check if any selected shape can be converted to curves
@@ -179,7 +313,11 @@ pub fn show_prop_bar(
 
             if can_convert_curves {
                 ui.separator();
-                if ui.button("Convert to Curves").on_hover_text("Convert primitive into editable Bézier nodes").clicked() {
+                if ui
+                    .button("Convert to Curves")
+                    .on_hover_text("Convert primitive into editable Bézier nodes")
+                    .clicked()
+                {
                     let ids: Vec<_> = doc.selection.ids.iter().copied().collect();
                     for id in ids {
                         if let Some(shape) = doc.find_shape(id) {
@@ -197,6 +335,7 @@ pub fn show_prop_bar(
                             }
                         }
                     }
+                    toast.show("✓ Converted primitive(s) to curves");
                 }
             }
         }

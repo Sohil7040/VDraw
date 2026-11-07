@@ -1,23 +1,27 @@
-//! Boolean path operations for VDraw — stub for Phase 4.
+//! Boolean, Knife, Eraser, Virtual Segment Delete, Offset, and Text-to-Path engine
+//! for VDraw in pure Rust.
 
-use core_geom::Polycurve;
+pub mod boolean;
+pub mod command;
+pub mod convert;
+pub mod eraser;
+pub mod error;
+pub mod knife;
+pub mod offset;
+pub mod text_to_path;
+pub mod virtual_segment;
 
-/// The type of boolean operation to perform.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BooleanOp {
-    Weld,
-    Trim,
-    Intersect,
-    Simplify,
-    FrontMinusBack,
-    BackMinusFront,
-    CreateBoundary,
-    ExclusiveOr,
-}
-
-/// Perform a boolean operation on two paths.
-/// Stub for Phase 4: returns a clone of `a` as placeholder.
-pub fn boolean_op(op: BooleanOp, a: &Polycurve, _b: &Polycurve) -> Polycurve {
-    let _ = op;
-    a.clone()
-}
+pub use boolean::{boolean_op, execute_boolean, simplify_shape, BooleanOp};
+pub use command::{
+    apply_boolean_to_document, apply_contour_to_document, apply_eraser_to_document,
+    apply_knife_to_document, apply_text_to_document, apply_virtual_segment_delete_to_document,
+    BooleanReplaceCommand,
+};
+pub use eraser::erase_shape;
+pub use error::{BooleanError, TextError};
+pub use knife::slice_shape;
+pub use offset::{offset_shape, ContourJoin};
+pub use text_to_path::{
+    default_text_to_polycurve, text_to_polycurve, TextOptions, DEFAULT_FONT_BYTES,
+};
+pub use virtual_segment::{delete_virtual_segment, find_virtual_segments, VirtualSegment};

@@ -76,12 +76,16 @@ static DRAWING_GROUP: &[ToolEntry] = &[
 
 static EDITING_GROUP: &[ToolEntry] = &[
     ToolEntry {
+        id: ToolId::Knife,
+        icon: "⚔",
+    },
+    ToolEntry {
         id: ToolId::Eraser,
         icon: "⌫",
     },
     ToolEntry {
-        id: ToolId::Knife,
-        icon: "⚔",
+        id: ToolId::VirtualSegmentDelete,
+        icon: "✂",
     },
 ];
 

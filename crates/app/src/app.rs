@@ -11,7 +11,9 @@ use crate::{
     panels::{
         dock::{self, DockState},
         statusbar::StatusBarState,
+        toast::ToastManager,
         toolbar::ToolbarState,
+        welcome::WelcomeState,
     },
     theme,
     workspace::{WorkspacePreset, WorkspaceState},
@@ -29,6 +31,8 @@ pub struct VDrawApp {
     workspace: WorkspaceState,
     statusbar: StatusBarState,
     palette: CommandPalette,
+    pub toast: ToastManager,
+    pub welcome: WelcomeState,
     /// Whether this is the first frame (used to fit the page on startup).
     first_frame: bool,
 }
@@ -52,6 +56,8 @@ impl VDrawApp {
             workspace: WorkspaceState::default(),
             statusbar: StatusBarState::default(),
             palette: CommandPalette::new(),
+            toast: ToastManager::new(),
+            welcome: WelcomeState::new(),
             first_frame: true,
         }
     }
@@ -143,6 +149,18 @@ impl eframe::App for VDrawApp {
                 } else if i.key_pressed(egui::Key::B) {
                     self.toolbar.active_tool = ToolId::Pen;
                     self.tool_manager.set_tool(ToolId::Pen);
+                } else if i.key_pressed(egui::Key::K) {
+                    self.toolbar.active_tool = ToolId::Knife;
+                    self.tool_manager.set_tool(ToolId::Knife);
+                } else if i.key_pressed(egui::Key::X) {
+                    self.toolbar.active_tool = ToolId::Eraser;
+                    self.tool_manager.set_tool(ToolId::Eraser);
+                } else if i.key_pressed(egui::Key::D) {
+                    self.toolbar.active_tool = ToolId::VirtualSegmentDelete;
+                    self.tool_manager.set_tool(ToolId::VirtualSegmentDelete);
+                } else if i.key_pressed(egui::Key::T) {
+                    self.toolbar.active_tool = ToolId::Text;
+                    self.tool_manager.set_tool(ToolId::Text);
                 } else if i.key_pressed(egui::Key::Escape) {
                     self.tool_manager.on_cancel(&mut self.doc);
                     self.doc.selection.clear();
@@ -187,6 +205,11 @@ impl eframe::App for VDrawApp {
                 egui::menu::bar(ui, |ui| {
                     // File menu
                     ui.menu_button("File", |ui| {
+                        if ui.button("Welcome Screen…").clicked() {
+                            self.welcome.is_open = true;
+                            ui.close_menu();
+                        }
+                        ui.separator();
                         if ui.button("New         Ctrl+N").clicked() {
                             self.doc = Document::new("Untitled");
                             self.undo_stack.clear();
@@ -339,6 +362,122 @@ impl eframe::App for VDrawApp {
                         });
                     });
 
+                    // Object menu
+                    ui.menu_button("Object", |ui| {
+                        ui.menu_button("Shaping (Booleans)", |ui| {
+                            let sel_count = self.doc.selection.len();
+                            if ui
+                                .add_enabled(sel_count >= 2, egui::Button::new("⊞ Weld"))
+                                .clicked()
+                            {
+                                match core_boolean::apply_boolean_to_document(
+                                    &mut self.doc,
+                                    &mut self.undo_stack,
+                                    core_boolean::BooleanOp::Weld,
+                                    true,
+                                ) {
+                                    Ok(msg) => self.toast.show(format!("✓ {}", msg)),
+                                    Err(e) => self.toast.show(format!("⚠ Weld failed: {}", e)),
+                                }
+                                ui.close_menu();
+                            }
+                            if ui
+                                .add_enabled(sel_count >= 2, egui::Button::new("⊟ Trim"))
+                                .clicked()
+                            {
+                                match core_boolean::apply_boolean_to_document(
+                                    &mut self.doc,
+                                    &mut self.undo_stack,
+                                    core_boolean::BooleanOp::Trim,
+                                    true,
+                                ) {
+                                    Ok(msg) => self.toast.show(format!("✓ {}", msg)),
+                                    Err(e) => self.toast.show(format!("⚠ Trim failed: {}", e)),
+                                }
+                                ui.close_menu();
+                            }
+                            if ui
+                                .add_enabled(sel_count >= 2, egui::Button::new("⊠ Intersect"))
+                                .clicked()
+                            {
+                                match core_boolean::apply_boolean_to_document(
+                                    &mut self.doc,
+                                    &mut self.undo_stack,
+                                    core_boolean::BooleanOp::Intersect,
+                                    true,
+                                ) {
+                                    Ok(msg) => self.toast.show(format!("✓ {}", msg)),
+                                    Err(e) => self.toast.show(format!("⚠ Intersect failed: {}", e)),
+                                }
+                                ui.close_menu();
+                            }
+                            if ui
+                                .add_enabled(sel_count >= 2, egui::Button::new("⊞̷ Exclude"))
+                                .clicked()
+                            {
+                                match core_boolean::apply_boolean_to_document(
+                                    &mut self.doc,
+                                    &mut self.undo_stack,
+                                    core_boolean::BooleanOp::Exclude,
+                                    true,
+                                ) {
+                                    Ok(msg) => self.toast.show(format!("✓ {}", msg)),
+                                    Err(e) => self.toast.show(format!("⚠ Exclude failed: {}", e)),
+                                }
+                                ui.close_menu();
+                            }
+                            if ui
+                                .add_enabled(sel_count >= 2, egui::Button::new("⬚ Create Boundary"))
+                                .clicked()
+                            {
+                                match core_boolean::apply_boolean_to_document(
+                                    &mut self.doc,
+                                    &mut self.undo_stack,
+                                    core_boolean::BooleanOp::CreateBoundary,
+                                    true,
+                                ) {
+                                    Ok(msg) => self.toast.show(format!("✓ {}", msg)),
+                                    Err(e) => self.toast.show(format!("⚠ Boundary failed: {}", e)),
+                                }
+                                ui.close_menu();
+                            }
+                            if ui
+                                .add_enabled(sel_count >= 1, egui::Button::new("◌ Simplify"))
+                                .clicked()
+                            {
+                                match core_boolean::apply_boolean_to_document(
+                                    &mut self.doc,
+                                    &mut self.undo_stack,
+                                    core_boolean::BooleanOp::Simplify,
+                                    true,
+                                ) {
+                                    Ok(msg) => self.toast.show(format!("✓ {}", msg)),
+                                    Err(e) => self.toast.show(format!("⚠ Simplify failed: {}", e)),
+                                }
+                                ui.close_menu();
+                            }
+                        });
+                        ui.separator();
+                        if ui
+                            .add_enabled(
+                                !self.doc.selection.is_empty(),
+                                egui::Button::new("⤢ Parallel Contour (+3mm)"),
+                            )
+                            .clicked()
+                        {
+                            match core_boolean::apply_contour_to_document(
+                                &mut self.doc,
+                                &mut self.undo_stack,
+                                3.0,
+                                core_boolean::ContourJoin::Round,
+                            ) {
+                                Ok(msg) => self.toast.show(format!("✓ {}", msg)),
+                                Err(e) => self.toast.show(format!("⚠ Contour failed: {}", e)),
+                            }
+                            ui.close_menu();
+                        }
+                    });
+
                     // Tools menu
                     ui.menu_button("Tools", |ui| {
                         if ui.button("Pick Tool (V)").clicked() {
@@ -391,10 +530,35 @@ impl eframe::App for VDrawApp {
                             self.tool_manager.set_tool(ToolId::Pen);
                             ui.close_menu();
                         }
+                        ui.separator();
+                        if ui.button("Knife Tool (K)").clicked() {
+                            self.toolbar.active_tool = ToolId::Knife;
+                            self.tool_manager.set_tool(ToolId::Knife);
+                            ui.close_menu();
+                        }
+                        if ui.button("Eraser Tool (X)").clicked() {
+                            self.toolbar.active_tool = ToolId::Eraser;
+                            self.tool_manager.set_tool(ToolId::Eraser);
+                            ui.close_menu();
+                        }
+                        if ui.button("Virtual Segment Delete (D)").clicked() {
+                            self.toolbar.active_tool = ToolId::VirtualSegmentDelete;
+                            self.tool_manager.set_tool(ToolId::VirtualSegmentDelete);
+                            ui.close_menu();
+                        }
+                        if ui.button("Text Outlines (T)").clicked() {
+                            self.toolbar.active_tool = ToolId::Text;
+                            self.tool_manager.set_tool(ToolId::Text);
+                            ui.close_menu();
+                        }
                     });
 
                     // Help menu
                     ui.menu_button("Help", |ui| {
+                        if ui.button("Welcome Screen…").clicked() {
+                            self.welcome.is_open = true;
+                            ui.close_menu();
+                        }
                         if ui.button("Command Palette (Ctrl+K)").clicked() {
                             self.palette.open = true;
                             ui.close_menu();
@@ -423,6 +587,7 @@ impl eframe::App for VDrawApp {
                         &mut self.doc,
                         &mut self.undo_stack,
                         &mut self.tool_manager,
+                        &mut self.toast,
                     );
                 });
         }
@@ -481,9 +646,10 @@ impl eframe::App for VDrawApp {
                         .show(ui, |ui| {
                             dock::show_dock_content(
                                 ui,
-                                &self.dock,
+                                &mut self.dock,
                                 &mut self.doc,
                                 &mut self.undo_stack,
+                                &mut self.toast,
                             );
                         });
                 });
@@ -522,5 +688,12 @@ impl eframe::App for VDrawApp {
                     &mut self.snap_solver,
                 );
             });
+
+        // ── Welcome Screen modal ──────────────────────────────────────────
+        self.welcome
+            .show(ctx, &mut self.doc, &mut self.canvas, &mut self.toast);
+
+        // ── HUD Toast Notifications ───────────────────────────────────────
+        self.toast.render(ctx);
     }
 }

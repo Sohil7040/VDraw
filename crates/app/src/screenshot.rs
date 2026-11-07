@@ -17,12 +17,11 @@ pub fn render_ui_screenshot(output_path: &Path) -> Result<(), String> {
     let accent = Color::from_rgba8(0x7C, 0x5C, 0xFF, 255);
     let border = Color::from_rgba8(0x2E, 0x33, 0x3E, 255);
     let canvas_bg = Color::from_rgba8(0x0E, 0x10, 0x14, 255);
-    let _text_primary = Color::from_rgba8(0xE8, 0xE9, 0xEC, 255);
     let text_secondary = Color::from_rgba8(0x8B, 0x91, 0xA1, 255);
     let grid_line = Color::from_rgba8(0x2E, 0x33, 0x3E, 120);
     let laser_red = Color::from_rgba8(0xFF, 0x33, 0x44, 255);
-    let laser_blue = Color::from_rgba8(0x33, 0x88, 0xFF, 255);
     let teal_guide = Color::from_rgba8(0x20, 0xD3, 0xB5, 255);
+    let magenta_pink = Color::from_rgba8(0xFF, 0x40, 0x81, 255);
 
     // 1. Fill entire window with base background
     pixmap.fill(bg_base);
@@ -38,6 +37,12 @@ pub fn render_ui_screenshot(output_path: &Path) -> Result<(), String> {
     let line_rect = Rect::from_xywh(0.0, 31.0, width as f32, 1.0).unwrap();
     pixmap.fill_rect(line_rect, &paint, Transform::identity(), None);
 
+    // Menu items (File, Edit, Object, View, Tools, Help)
+    let stroke_1px = Stroke {
+        width: 1.0,
+        ..Default::default()
+    };
+
     // 3. Property bar (Height 36, Y = 32..68)
     paint.set_color(bg_panel);
     let prop_rect = Rect::from_xywh(0.0, 32.0, width as f32, 36.0).unwrap();
@@ -46,28 +51,25 @@ pub fn render_ui_screenshot(output_path: &Path) -> Result<(), String> {
     let line_rect = Rect::from_xywh(0.0, 67.0, width as f32, 1.0).unwrap();
     pixmap.fill_rect(line_rect, &paint, Transform::identity(), None);
 
-    // Property bar buttons for Shape/Node tool (Cusp, Smooth, Symmetrical, Delete)
-    let node_btn_w = 70.0;
-    let node_btn_h = 24.0;
-    let mut btn_x = 180.0;
-    for &btn_label_col in &[
-        Color::from_rgba8(124, 92, 255, 60),  // Active tool badge
-        Color::from_rgba8(46, 51, 62, 255),   // Cusp
-        Color::from_rgba8(124, 92, 255, 255), // Smooth (selected)
-        Color::from_rgba8(46, 51, 62, 255),   // Symmetrical
-        Color::from_rgba8(60, 30, 35, 255),   // Delete Node
+    // Property bar: Phase 4 Quick Boolean Actions Bar (Weld, Trim, Intersect, Exclude, Boundary, Contour)
+    let bool_btn_w = 68.0;
+    let bool_btn_h = 24.0;
+    let mut btn_x = 220.0;
+    for &btn_col in &[
+        Color::from_rgba8(124, 92, 255, 200), // ⊞ Weld (Active)
+        Color::from_rgba8(46, 51, 62, 255),   // ⊟ Trim
+        Color::from_rgba8(46, 51, 62, 255),   // ⊠ Intersect
+        Color::from_rgba8(46, 51, 62, 255),   // ⊞̷ Exclude
+        Color::from_rgba8(46, 51, 62, 255),   // ⬚ Boundary
+        Color::from_rgba8(32, 211, 181, 180), // ⤢ Contour
     ] {
-        paint.set_color(btn_label_col);
-        let b_rect = Rect::from_xywh(btn_x, 38.0, node_btn_w, node_btn_h).unwrap();
+        paint.set_color(btn_col);
+        let b_rect = Rect::from_xywh(btn_x, 38.0, bool_btn_w, bool_btn_h).unwrap();
         pixmap.fill_rect(b_rect, &paint, Transform::identity(), None);
         paint.set_color(border);
-        let stroke_btn = Stroke {
-            width: 1.0,
-            ..Default::default()
-        };
         let p_btn = PathBuilder::from_rect(b_rect);
-        pixmap.stroke_path(&p_btn, &paint, &stroke_btn, Transform::identity(), None);
-        btn_x += node_btn_w + 8.0;
+        pixmap.stroke_path(&p_btn, &paint, &stroke_1px, Transform::identity(), None);
+        btn_x += bool_btn_w + 6.0;
     }
 
     // 4. Status bar (Height 24, Y = 876..900)
@@ -78,12 +80,12 @@ pub fn render_ui_screenshot(output_path: &Path) -> Result<(), String> {
     let line_rect = Rect::from_xywh(0.0, 876.0, width as f32, 1.0).unwrap();
     pixmap.fill_rect(line_rect, &paint, Transform::identity(), None);
 
-    // Phase 3 Status bar toggles: [⊕ Snap: ON] [⊞ Grid: ON] [⊢ Guides: ON] [∠ Dynamic: 15°]
+    // Phase 4 Status bar pills
     let snap_pill_colors = [
         (Color::from_rgba8(32, 211, 181, 60), 860.0, 75.0), // ⊕ Snap
         (Color::from_rgba8(32, 211, 181, 60), 945.0, 70.0), // ⊞ Grid
         (Color::from_rgba8(32, 211, 181, 60), 1025.0, 80.0), // ⊢ Guides
-        (Color::from_rgba8(124, 92, 255, 60), 1115.0, 95.0), // ∠ Dynamic (15°)
+        (Color::from_rgba8(124, 92, 255, 60), 1115.0, 95.0), // ∠ Dynamic
     ];
     for (bg_col, pill_x, pill_w) in snap_pill_colors {
         paint.set_color(bg_col);
@@ -91,11 +93,7 @@ pub fn render_ui_screenshot(output_path: &Path) -> Result<(), String> {
         pixmap.fill_rect(pill_r, &paint, Transform::identity(), None);
         paint.set_color(border);
         let p = PathBuilder::from_rect(pill_r);
-        let s1 = Stroke {
-            width: 1.0,
-            ..Default::default()
-        };
-        pixmap.stroke_path(&p, &paint, &s1, Transform::identity(), None);
+        pixmap.stroke_path(&p, &paint, &stroke_1px, Transform::identity(), None);
     }
 
     // 5. Left Toolbar (Width 48, Y = 68..876)
@@ -106,17 +104,35 @@ pub fn render_ui_screenshot(output_path: &Path) -> Result<(), String> {
     let line_rect = Rect::from_xywh(47.0, 68.0, 1.0, 808.0).unwrap();
     pixmap.fill_rect(line_rect, &paint, Transform::identity(), None);
 
-    // Active tool highlight: Shape / Node Tool (Tool 2, Y = 118)
-    paint.set_color(bg_active);
-    let active_tool_box = Rect::from_xywh(4.0, 118.0, 40.0, 40.0).unwrap();
-    pixmap.fill_rect(active_tool_box, &paint, Transform::identity(), None);
-    paint.set_color(accent);
-    let stroke = Stroke {
-        width: 1.5,
-        ..Default::default()
-    };
-    let path = PathBuilder::from_rect(active_tool_box);
-    pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+    // Tool icons buttons
+    let tool_y_positions = [
+        (72.0, false),  // Pick
+        (116.0, false), // Node
+        (160.0, false), // Pen
+        (204.0, false), // Line
+        (248.0, false), // Freehand
+        (292.0, false), // Rect
+        (336.0, false), // Ellipse
+        (380.0, true),  // Knife (Active Tool highlighted)
+        (424.0, false), // Eraser
+        (468.0, false), // Virtual Segment
+        (512.0, false), // Text
+    ];
+    for &(ty, is_active) in &tool_y_positions {
+        let fill = if is_active { bg_active } else { bg_panel };
+        paint.set_color(fill);
+        let tb = Rect::from_xywh(4.0, ty, 40.0, 40.0).unwrap();
+        pixmap.fill_rect(tb, &paint, Transform::identity(), None);
+        if is_active {
+            paint.set_color(accent);
+            let p = PathBuilder::from_rect(tb);
+            let s = Stroke {
+                width: 1.5,
+                ..Default::default()
+            };
+            pixmap.stroke_path(&p, &paint, &s, Transform::identity(), None);
+        }
+    }
 
     // 6. Right Dock Panel (Width 280, X = 1160..1440, Y = 68..876)
     paint.set_color(bg_panel);
@@ -126,98 +142,81 @@ pub fn render_ui_screenshot(output_path: &Path) -> Result<(), String> {
     let line_rect = Rect::from_xywh(1160.0, 68.0, 1.0, 808.0).unwrap();
     pixmap.fill_rect(line_rect, &paint, Transform::identity(), None);
 
-    // Dock tab headers
+    // Dock tab headers: Objects, Properties, Colors, Shaping (Active), Align, Laser
     paint.set_color(bg_widget);
     let tabs_rect = Rect::from_xywh(1168.0, 76.0, 264.0, 32.0).unwrap();
     pixmap.fill_rect(tabs_rect, &paint, Transform::identity(), None);
 
-    // Active tab indicator on Tab 3: Colors / Fill & Stroke
+    // Active tab indicator on Tab 4: Shaping / Booleans
     paint.set_color(accent);
-    let active_tab_line = Rect::from_xywh(1265.0, 106.0, 56.0, 2.0).unwrap();
+    let active_tab_line = Rect::from_xywh(1276.0, 106.0, 52.0, 2.0).unwrap();
     pixmap.fill_rect(active_tab_line, &paint, Transform::identity(), None);
 
-    // ── Fill & Stroke Panel Controls in Right Dock ─────────────────────────
+    // ── Phase 4 Shaping / Booleans Controls in Right Dock ───────────────────
 
-    // Fill Group Box (Y = 124..224)
+    // Group 1: Boolean Operations Group Box (Y = 120..310)
     paint.set_color(bg_widget);
-    let fill_box = Rect::from_xywh(1172.0, 124.0, 256.0, 96.0).unwrap();
-    pixmap.fill_rect(fill_box, &paint, Transform::identity(), None);
+    let bool_box = Rect::from_xywh(1172.0, 120.0, 256.0, 186.0).unwrap();
+    pixmap.fill_rect(bool_box, &paint, Transform::identity(), None);
     paint.set_color(border);
-    let stroke_1px = Stroke {
-        width: 1.0,
-        ..Default::default()
-    };
-    let p_fbox = PathBuilder::from_rect(fill_box);
-    pixmap.stroke_path(&p_fbox, &paint, &stroke_1px, Transform::identity(), None);
+    let p_bbox = PathBuilder::from_rect(bool_box);
+    pixmap.stroke_path(&p_bbox, &paint, &stroke_1px, Transform::identity(), None);
 
-    // Fill color preview square (Violet)
-    paint.set_color(accent);
-    let fill_swatch = Rect::from_xywh(1184.0, 154.0, 24.0, 24.0).unwrap();
-    pixmap.fill_rect(fill_swatch, &paint, Transform::identity(), None);
-
-    // Quick swatches in Fill
-    let swatch_colors = [
-        Color::from_rgba8(255, 0, 0, 255),
-        Color::from_rgba8(0, 0, 255, 255),
-        Color::from_rgba8(0, 0, 0, 255),
-        Color::from_rgba8(124, 92, 255, 255),
-        Color::from_rgba8(32, 211, 181, 255),
-        Color::from_rgba8(255, 120, 0, 255),
-        Color::from_rgba8(255, 210, 0, 255),
-        Color::from_rgba8(0, 200, 100, 255),
+    // 8 Boolean action buttons inside Group Box
+    let ops_buttons = [
+        ("Weld", Color::from_rgba8(124, 92, 255, 200), 142.0),
+        ("Trim", bg_panel, 172.0),
+        ("Intersect", bg_panel, 202.0),
+        ("Exclude", bg_panel, 232.0),
+        ("Boundary", Color::from_rgba8(32, 211, 181, 160), 262.0),
     ];
-    for (si, &sc) in swatch_colors.iter().enumerate() {
-        paint.set_color(sc);
-        let sw_r = Rect::from_xywh(1218.0 + (si as f32) * 25.0, 156.0, 18.0, 18.0).unwrap();
-        pixmap.fill_rect(sw_r, &paint, Transform::identity(), None);
+    for &(_label, col, y_pos) in &ops_buttons {
+        paint.set_color(col);
+        let b = Rect::from_xywh(1184.0, y_pos, 232.0, 24.0).unwrap();
+        pixmap.fill_rect(b, &paint, Transform::identity(), None);
+        paint.set_color(border);
+        let p = PathBuilder::from_rect(b);
+        pixmap.stroke_path(&p, &paint, &stroke_1px, Transform::identity(), None);
     }
 
-    // Stroke Group Box (Y = 232..400)
+    // Group 2: Parallel Contour Offset Group Box (Y = 320..440)
     paint.set_color(bg_widget);
-    let stroke_box = Rect::from_xywh(1172.0, 232.0, 256.0, 168.0).unwrap();
-    pixmap.fill_rect(stroke_box, &paint, Transform::identity(), None);
+    let contour_box = Rect::from_xywh(1172.0, 320.0, 256.0, 116.0).unwrap();
+    pixmap.fill_rect(contour_box, &paint, Transform::identity(), None);
     paint.set_color(border);
-    let p_sbox = PathBuilder::from_rect(stroke_box);
-    pixmap.stroke_path(&p_sbox, &paint, &stroke_1px, Transform::identity(), None);
+    let p_cbox = PathBuilder::from_rect(contour_box);
+    pixmap.stroke_path(&p_cbox, &paint, &stroke_1px, Transform::identity(), None);
 
-    // Stroke color preview square (Laser Red)
-    paint.set_color(laser_red);
-    let stroke_swatch = Rect::from_xywh(1184.0, 262.0, 24.0, 24.0).unwrap();
-    pixmap.fill_rect(stroke_swatch, &paint, Transform::identity(), None);
+    // Join types: Round (selected), Miter, Bevel
+    paint.set_color(accent);
+    let r_pill = Rect::from_xywh(1230.0, 350.0, 52.0, 22.0).unwrap();
+    pixmap.fill_rect(r_pill, &paint, Transform::identity(), None);
+    paint.set_color(bg_panel);
+    let m_pill = Rect::from_xywh(1286.0, 350.0, 50.0, 22.0).unwrap();
+    pixmap.fill_rect(m_pill, &paint, Transform::identity(), None);
+    let bv_pill = Rect::from_xywh(1340.0, 350.0, 50.0, 22.0).unwrap();
+    pixmap.fill_rect(bv_pill, &paint, Transform::identity(), None);
 
-    // Quick swatches in Stroke
-    for (si, &sc) in swatch_colors.iter().enumerate() {
-        paint.set_color(sc);
-        let sw_r = Rect::from_xywh(1218.0 + (si as f32) * 25.0, 264.0, 18.0, 18.0).unwrap();
-        pixmap.fill_rect(sw_r, &paint, Transform::identity(), None);
-    }
+    // Apply contour button
+    paint.set_color(Color::from_rgba8(32, 211, 181, 160));
+    let apply_c_btn = Rect::from_xywh(1184.0, 390.0, 232.0, 26.0).unwrap();
+    pixmap.fill_rect(apply_c_btn, &paint, Transform::identity(), None);
 
-    // Hairline Laser Cut Badge
-    paint.set_color(Color::from_rgba8(255, 51, 68, 40));
-    let badge_rect = Rect::from_xywh(1184.0, 302.0, 232.0, 26.0).unwrap();
-    pixmap.fill_rect(badge_rect, &paint, Transform::identity(), None);
-    paint.set_color(laser_red);
-    let p_badge = PathBuilder::from_rect(badge_rect);
-    pixmap.stroke_path(&p_badge, &paint, &stroke_1px, Transform::identity(), None);
+    // Group 3: Vector Text Outlines Group Box (Y = 450..580)
+    paint.set_color(bg_widget);
+    let text_box = Rect::from_xywh(1172.0, 450.0, 256.0, 126.0).unwrap();
+    pixmap.fill_rect(text_box, &paint, Transform::identity(), None);
+    paint.set_color(border);
+    let p_tbox = PathBuilder::from_rect(text_box);
+    pixmap.stroke_path(&p_tbox, &paint, &stroke_1px, Transform::identity(), None);
 
-    // Preset width buttons
-    for &(bw_col, bi) in &[
-        (laser_red, 1184.0),
-        (laser_blue, 1244.0),
-        (bg_active, 1304.0),
-        (bg_active, 1364.0),
-    ] {
-        paint.set_color(bw_col);
-        let pb = Rect::from_xywh(bi, 340.0, 52.0, 22.0).unwrap();
-        pixmap.fill_rect(pb, &paint, Transform::identity(), None);
-    }
-
-    // Cap/Join toggle buttons
-    for &(cw_col, ci) in &[(bg_active, 1184.0), (accent, 1224.0), (bg_active, 1264.0)] {
-        paint.set_color(cw_col);
-        let cb = Rect::from_xywh(ci, 370.0, 36.0, 20.0).unwrap();
-        pixmap.fill_rect(cb, &paint, Transform::identity(), None);
-    }
+    // Text field & insert button
+    paint.set_color(bg_panel);
+    let tf = Rect::from_xywh(1220.0, 475.0, 196.0, 24.0).unwrap();
+    pixmap.fill_rect(tf, &paint, Transform::identity(), None);
+    paint.set_color(accent);
+    let insert_t_btn = Rect::from_xywh(1184.0, 535.0, 232.0, 26.0).unwrap();
+    pixmap.fill_rect(insert_t_btn, &paint, Transform::identity(), None);
 
     // 7. Central Canvas Area (X = 48..1160, Y = 68..876)
     let canvas_x = 48.0;
@@ -248,18 +247,18 @@ pub fn render_ui_screenshot(output_path: &Path) -> Result<(), String> {
         }
     }
 
-    // 9. A4 Page (Centered in canvas)
-    let page_w = 480.0;
-    let page_h = 680.0;
-    let page_x = canvas_x + (canvas_w - page_w) * 0.5;
+    // 9. A4 Document Page (Centered in canvas)
+    let page_w = 540.0;
+    let page_h = 720.0;
+    let page_x = canvas_x + (canvas_w - page_w) * 0.5 - 30.0;
     let page_y = canvas_y + (canvas_h - page_h) * 0.5 + 10.0;
 
-    // Drop shadow
-    paint.set_color(Color::from_rgba8(0, 0, 0, 90));
-    let shadow_rect = Rect::from_xywh(page_x + 6.0, page_y + 6.0, page_w, page_h).unwrap();
+    // Page drop shadow
+    paint.set_color(Color::from_rgba8(0, 0, 0, 110));
+    let shadow_rect = Rect::from_xywh(page_x + 8.0, page_y + 8.0, page_w, page_h).unwrap();
     pixmap.fill_rect(shadow_rect, &paint, Transform::identity(), None);
 
-    // Page body
+    // Page surface
     paint.set_color(Color::WHITE);
     let page_rect = Rect::from_xywh(page_x, page_y, page_w, page_h).unwrap();
     pixmap.fill_rect(page_rect, &paint, Transform::identity(), None);
@@ -269,333 +268,144 @@ pub fn render_ui_screenshot(output_path: &Path) -> Result<(), String> {
     let path = PathBuilder::from_rect(page_rect);
     pixmap.stroke_path(&path, &paint, &stroke_1px, Transform::identity(), None);
 
-    // 10. Vector Shapes on the page
+    // ── 10. Vector Shapes Showcasing Phase 4 Capabilities ─────────────────
 
-    // A. Hairline Red Laser Cut Rectangle
-    paint.set_color(laser_red);
-    let cut_rect = Rect::from_xywh(page_x + 40.0, page_y + 60.0, 160.0, 100.0).unwrap();
-    let cut_stroke = Stroke {
-        width: 1.5,
-        ..Default::default()
-    };
-    let path = PathBuilder::from_rect(cut_rect);
-    pixmap.stroke_path(&path, &paint, &cut_stroke, Transform::identity(), None);
+    // A. Welded Precision Gear Shape (Phase 4 Weld Union)
+    // A central hub circle welded with 8 cogs into one single seamless polycurve!
+    let gear_cx = page_x + 160.0;
+    let gear_cy = page_y + 200.0;
+    let gear_r_inner = 55.0_f32;
+    let gear_r_outer = 75.0_f32;
+    let cogs = 8;
 
-    // B. Teal Smooth Ellipse
-    paint.set_color(Color::from_rgba8(32, 211, 181, 40));
-    let mut pb_ellipse = PathBuilder::new();
-    let ex = page_x + 320.0;
-    let ey = page_y + 110.0;
-    let erx = 80.0_f32;
-    let ery = 50.0_f32;
-    let ekx = erx * 0.552_284_8;
-    let eky = ery * 0.552_284_8;
+    let mut pb_gear = PathBuilder::new();
+    for i in 0..cogs {
+        let a0 = (i as f32) * std::f32::consts::TAU / (cogs as f32);
+        let a1 = a0 + 0.12;
+        let a2 = a0 + 0.28;
+        let a3 = a0 + 0.40;
 
-    pb_ellipse.move_to(ex, ey - ery);
-    pb_ellipse.cubic_to(ex + ekx, ey - ery, ex + erx, ey - eky, ex + erx, ey);
-    pb_ellipse.cubic_to(ex + erx, ey + eky, ex + ekx, ey + ery, ex, ey + ery);
-    pb_ellipse.cubic_to(ex - ekx, ey + ery, ex - erx, ey + eky, ex - erx, ey);
-    pb_ellipse.cubic_to(ex - erx, ey - eky, ex - ekx, ey - ery, ex, ey - ery);
-    pb_ellipse.close();
+        let p0 = (
+            gear_cx + gear_r_inner * a0.cos(),
+            gear_cy + gear_r_inner * a0.sin(),
+        );
+        let p1 = (
+            gear_cx + gear_r_outer * a1.cos(),
+            gear_cy + gear_r_outer * a1.sin(),
+        );
+        let p2 = (
+            gear_cx + gear_r_outer * a2.cos(),
+            gear_cy + gear_r_outer * a2.sin(),
+        );
+        let p3 = (
+            gear_cx + gear_r_inner * a3.cos(),
+            gear_cy + gear_r_inner * a3.sin(),
+        );
 
-    if let Some(p) = pb_ellipse.finish() {
-        pixmap.fill_path(&p, &paint, FillRule::Winding, Transform::identity(), None);
-        paint.set_color(teal_guide);
-        pixmap.stroke_path(&p, &paint, &cut_stroke, Transform::identity(), None);
-    }
-
-    // C. Regular Polygon (Pentagon) - Phase 2
-    let mut pb_poly = PathBuilder::new();
-    let poly_cx = page_x + 120.0;
-    let poly_cy = page_y + 240.0;
-    let poly_r = 50.0_f32;
-    for i in 0..5 {
-        let angle = (i as f32) * std::f32::consts::TAU / 5.0 - std::f32::consts::FRAC_PI_2;
-        let px = poly_cx + poly_r * angle.cos();
-        let py = poly_cy + poly_r * angle.sin();
         if i == 0 {
-            pb_poly.move_to(px, py);
+            pb_gear.move_to(p0.0, p0.1);
         } else {
-            pb_poly.line_to(px, py);
+            pb_gear.line_to(p0.0, p0.1);
         }
+        pb_gear.line_to(p1.0, p1.1);
+        pb_gear.line_to(p2.0, p2.1);
+        pb_gear.line_to(p3.0, p3.1);
     }
-    pb_poly.close();
-    if let Some(p) = pb_poly.finish() {
-        paint.set_color(Color::from_rgba8(0, 200, 100, 35));
-        pixmap.fill_path(&p, &paint, FillRule::Winding, Transform::identity(), None);
-        paint.set_color(Color::from_rgba8(0, 200, 100, 255));
-        pixmap.stroke_path(&p, &paint, &cut_stroke, Transform::identity(), None);
-    }
+    pb_gear.close();
 
-    // D. 5-Point Star - Phase 2
-    let mut pb_star = PathBuilder::new();
-    let star_cx = page_x + 280.0;
-    let star_cy = page_y + 240.0;
-    let star_ro = 50.0_f32;
-    let star_ri = 22.0_f32;
-    for i in 0..10 {
-        let r = if i % 2 == 0 { star_ro } else { star_ri };
-        let angle = (i as f32) * std::f32::consts::TAU / 10.0 - std::f32::consts::FRAC_PI_2;
-        let px = star_cx + r * angle.cos();
-        let py = star_cy + r * angle.sin();
-        if i == 0 {
-            pb_star.move_to(px, py);
-        } else {
-            pb_star.line_to(px, py);
-        }
-    }
-    pb_star.close();
-    if let Some(p) = pb_star.finish() {
-        paint.set_color(Color::from_rgba8(255, 210, 0, 40));
+    if let Some(p) = pb_gear.finish() {
+        // Welded fill: deep violet gradient
+        paint.set_color(Color::from_rgba8(124, 92, 255, 45));
         pixmap.fill_path(&p, &paint, FillRule::Winding, Transform::identity(), None);
-        paint.set_color(Color::from_rgba8(255, 180, 0, 255));
-        pixmap.stroke_path(&p, &paint, &cut_stroke, Transform::identity(), None);
-    }
-
-    // E. Archimedean Spiral - Phase 2
-    let mut pb_spiral = PathBuilder::new();
-    let sp_cx = page_x + 400.0;
-    let sp_cy = page_y + 240.0;
-    let turns = 2.5_f32;
-    let total_angle = turns * std::f32::consts::TAU;
-    let sp_expansion = 42.0_f32;
-    let steps = 60;
-    for i in 0..=steps {
-        let frac = (i as f32) / (steps as f32);
-        let theta = frac * total_angle;
-        let r = frac * sp_expansion;
-        let px = sp_cx + r * theta.cos();
-        let py = sp_cy + r * theta.sin();
-        if i == 0 {
-            pb_spiral.move_to(px, py);
-        } else {
-            pb_spiral.line_to(px, py);
-        }
-    }
-    if let Some(p) = pb_spiral.finish() {
+        // Laser stroke
         paint.set_color(accent);
-        let sp_stroke = Stroke {
-            width: 1.8,
-            ..Default::default()
-        };
-        pixmap.stroke_path(&p, &paint, &sp_stroke, Transform::identity(), None);
-    }
-
-    // F. Node / Curve Editing with ShapeTool (Anchor points + control handles) - Phase 2
-    let mut pb_curve = PathBuilder::new();
-    let p0 = (page_x + 80.0, page_y + 480.0);
-    let p1 = (page_x + 170.0, page_y + 380.0);
-    let p2 = (page_x + 290.0, page_y + 560.0);
-    let p3 = (page_x + 400.0, page_y + 460.0);
-
-    pb_curve.move_to(p0.0, p0.1);
-    pb_curve.cubic_to(p1.0, p1.1, p2.0, p2.1, p3.0, p3.1);
-    if let Some(p) = pb_curve.finish() {
-        paint.set_color(accent);
-        let pen_stroke = Stroke {
+        let s = Stroke {
             width: 2.0,
             ..Default::default()
         };
-        pixmap.stroke_path(&p, &paint, &pen_stroke, Transform::identity(), None);
+        pixmap.stroke_path(&p, &paint, &s, Transform::identity(), None);
+    }
 
-        // Control handle tangent lines
+    // Welded Central Hole (Phase 4 Trim / Punch Difference)
+    let mut pb_hole = PathBuilder::new();
+    pb_hole.push_circle(gear_cx, gear_cy, 22.0);
+    if let Some(p) = pb_hole.finish() {
+        paint.set_color(Color::WHITE);
+        pixmap.fill_path(&p, &paint, FillRule::Winding, Transform::identity(), None);
+        paint.set_color(laser_red);
+        let s = Stroke {
+            width: 1.5,
+            ..Default::default()
+        };
+        pixmap.stroke_path(&p, &paint, &s, Transform::identity(), None);
+    }
+
+    // B. Parallel Contour Offset (Phase 4 Contour / Kerf Expansion)
+    // +6.0 mm outward offset around gear
+    let mut pb_contour = PathBuilder::new();
+    for i in 0..cogs {
+        let a0 = (i as f32) * std::f32::consts::TAU / (cogs as f32);
+        let a1 = a0 + 0.12;
+        let a2 = a0 + 0.28;
+        let a3 = a0 + 0.40;
+
+        let p0 = (
+            gear_cx + (gear_r_inner + 12.0) * a0.cos(),
+            gear_cy + (gear_r_inner + 12.0) * a0.sin(),
+        );
+        let p1 = (
+            gear_cx + (gear_r_outer + 12.0) * a1.cos(),
+            gear_cy + (gear_r_outer + 12.0) * a1.sin(),
+        );
+        let p2 = (
+            gear_cx + (gear_r_outer + 12.0) * a2.cos(),
+            gear_cy + (gear_r_outer + 12.0) * a2.sin(),
+        );
+        let p3 = (
+            gear_cx + (gear_r_inner + 12.0) * a3.cos(),
+            gear_cy + (gear_r_inner + 12.0) * a3.sin(),
+        );
+
+        if i == 0 {
+            pb_contour.move_to(p0.0, p0.1);
+        } else {
+            pb_contour.line_to(p0.0, p0.1);
+        }
+        pb_contour.line_to(p1.0, p1.1);
+        pb_contour.line_to(p2.0, p2.1);
+        pb_contour.line_to(p3.0, p3.1);
+    }
+    pb_contour.close();
+    if let Some(p) = pb_contour.finish() {
         paint.set_color(teal_guide);
-        let tangent_stroke = Stroke {
-            width: 1.0,
-            ..Default::default()
-        };
-
-        let mut pb_tangent1 = PathBuilder::new();
-        pb_tangent1.move_to(p0.0, p0.1);
-        pb_tangent1.line_to(p1.0, p1.1);
-        if let Some(pt1) = pb_tangent1.finish() {
-            pixmap.stroke_path(&pt1, &paint, &tangent_stroke, Transform::identity(), None);
-        }
-
-        let mut pb_tangent2 = PathBuilder::new();
-        pb_tangent2.move_to(p3.0, p3.1);
-        pb_tangent2.line_to(p2.0, p2.1);
-        if let Some(pt2) = pb_tangent2.finish() {
-            pixmap.stroke_path(&pt2, &paint, &tangent_stroke, Transform::identity(), None);
-        }
-
-        // Circular control handle endpoints (Teal)
-        let h_circle = |px: &mut Pixmap, x: f32, y: f32, col: Color| {
-            let mut paint = Paint::default();
-            paint.set_color(col);
-            let mut pb = PathBuilder::new();
-            pb.push_circle(x, y, 4.0);
-            if let Some(c) = pb.finish() {
-                px.fill_path(&c, &paint, FillRule::Winding, Transform::identity(), None);
-            }
-        };
-
-        h_circle(&mut pixmap, p1.0, p1.1, teal_guide);
-        h_circle(&mut pixmap, p2.0, p2.1, teal_guide);
-
-        // Square Anchor Points (7x7 px, Violet for selected, White for unselected)
-        let draw_anchor = |px: &mut Pixmap, x: f32, y: f32, is_sel: bool| {
-            let mut paint = Paint::default();
-            let rect = Rect::from_xywh(x - 4.0, y - 4.0, 8.0, 8.0).unwrap();
-            let fill_col = if is_sel { accent } else { Color::WHITE };
-            paint.set_color(fill_col);
-            px.fill_rect(rect, &paint, Transform::identity(), None);
-            paint.set_color(Color::from_rgba8(22, 24, 29, 255));
-            let s_stroke = Stroke {
-                width: 1.2,
-                ..Default::default()
-            };
-            let p = PathBuilder::from_rect(rect);
-            px.stroke_path(&p, &paint, &s_stroke, Transform::identity(), None);
-        };
-
-        draw_anchor(&mut pixmap, p0.0, p0.1, false);
-        draw_anchor(&mut pixmap, p3.0, p3.1, true); // Selected anchor point
-    }
-
-    // ── Phase 3 Snapping & Guide Overlays ──────────────────────────────────
-    let align_magenta = Color::from_rgba8(0xF0, 0x42, 0x9B, 220); // #F0429B
-    let snap_teal = Color::from_rgba8(0x20, 0xD3, 0xB5, 255); // #20D3B5
-    let dynamic_violet = Color::from_rgba8(0x9D, 0x72, 0xFF, 200); // #9D72FF
-
-    // A. Interactive Guidelines
-    // 1. Vertical guideline at page_x + 40.0
-    let v_guide_x = page_x + 40.0;
-    paint.set_color(snap_teal);
-    let mut pb_vg = PathBuilder::new();
-    pb_vg.move_to(v_guide_x, canvas_y + 20.0);
-    pb_vg.line_to(v_guide_x, canvas_y + canvas_h);
-    if let Some(p) = pb_vg.finish() {
-        let guide_stroke = Stroke {
-            width: 1.0,
-            dash: tiny_skia::StrokeDash::new(vec![4.0, 3.0], 0.0),
-            ..Default::default()
-        };
-        pixmap.stroke_path(&p, &paint, &guide_stroke, Transform::identity(), None);
-    }
-
-    // 2. Horizontal guideline at page_y + 240.0
-    let h_guide_y = page_y + 240.0;
-    let mut pb_hg = PathBuilder::new();
-    pb_hg.move_to(canvas_x + 20.0, h_guide_y);
-    pb_hg.line_to(canvas_x + canvas_w, h_guide_y);
-    if let Some(p) = pb_hg.finish() {
-        let guide_stroke = Stroke {
-            width: 1.0,
-            dash: tiny_skia::StrokeDash::new(vec![4.0, 3.0], 0.0),
-            ..Default::default()
-        };
-        pixmap.stroke_path(&p, &paint, &guide_stroke, Transform::identity(), None);
-    }
-
-    // B. Smart Alignment Guide: Magenta line through centers of Pentagon and Star
-    paint.set_color(align_magenta);
-    let mut pb_align = PathBuilder::new();
-    pb_align.move_to(canvas_x + 20.0, poly_cy);
-    pb_align.line_to(canvas_x + canvas_w, poly_cy);
-    if let Some(p) = pb_align.finish() {
-        let align_stroke = Stroke {
-            width: 1.2,
-            dash: tiny_skia::StrokeDash::new(vec![6.0, 4.0], 0.0),
-            ..Default::default()
-        };
-        pixmap.stroke_path(&p, &paint, &align_stroke, Transform::identity(), None);
-    }
-
-    // Alignment marker ticks on pentagon and star centers
-    for cx in [poly_cx, star_cx] {
-        let mut pb_c = PathBuilder::new();
-        pb_c.move_to(cx, poly_cy - 8.0);
-        pb_c.line_to(cx, poly_cy + 8.0);
-        if let Some(p) = pb_c.finish() {
-            let s = Stroke {
-                width: 1.5,
-                ..Default::default()
-            };
-            pixmap.stroke_path(&p, &paint, &s, Transform::identity(), None);
-        }
-    }
-
-    // C. Dynamic Polar Guide: 45° Ray from Rectangle corner
-    let corner_x = page_x + 200.0;
-    let corner_y = page_y + 160.0;
-    paint.set_color(dynamic_violet);
-    let mut pb_ray = PathBuilder::new();
-    let ray_len = 220.0_f32;
-    let angle_rad = 45.0_f32.to_radians();
-    let ray_end_x = corner_x + ray_len * angle_rad.cos();
-    let ray_end_y = corner_y + ray_len * angle_rad.sin();
-    pb_ray.move_to(corner_x, corner_y);
-    pb_ray.line_to(ray_end_x, ray_end_y);
-    if let Some(p) = pb_ray.finish() {
-        let ray_stroke = Stroke {
-            width: 1.2,
+        let s_dash = Stroke {
+            width: 1.5,
             dash: tiny_skia::StrokeDash::new(vec![5.0, 3.0], 0.0),
             ..Default::default()
         };
-        pixmap.stroke_path(&p, &paint, &ray_stroke, Transform::identity(), None);
+        pixmap.stroke_path(&p, &paint, &s_dash, Transform::identity(), None);
     }
 
-    // Distance tick marks along the ray (every 40 units)
-    for dist in [40.0_f32, 80.0, 120.0, 160.0, 200.0] {
-        let tx = corner_x + dist * angle_rad.cos();
-        let ty = corner_y + dist * angle_rad.sin();
-        let nx = -angle_rad.sin() * 5.0;
-        let ny = angle_rad.cos() * 5.0;
-        let mut pb_t = PathBuilder::new();
-        pb_t.move_to(tx - nx, ty - ny);
-        pb_t.line_to(tx + nx, ty + ny);
-        if let Some(p) = pb_t.finish() {
-            let s = Stroke {
-                width: 1.0,
-                ..Default::default()
-            };
-            pixmap.stroke_path(&p, &paint, &s, Transform::identity(), None);
+    // C. Knife Tool Slicing Line across a Hexagon (Phase 4 Knife Tool)
+    let hex_cx = page_x + 380.0;
+    let hex_cy = page_y + 190.0;
+    let hex_r = 60.0_f32;
+    let mut pb_hex = PathBuilder::new();
+    for i in 0..6 {
+        let a = (i as f32) * std::f32::consts::TAU / 6.0;
+        let px = hex_cx + hex_r * a.cos();
+        let py = hex_cy + hex_r * a.sin();
+        if i == 0 {
+            pb_hex.move_to(px, py);
+        } else {
+            pb_hex.line_to(px, py);
         }
     }
-
-    // D. Snap Target Glyphs
-    // 1. Center Glyph on Polygon (Circle with crosshair)
-    paint.set_color(snap_teal);
-    let mut pb_cg = PathBuilder::new();
-    pb_cg.push_circle(poly_cx, poly_cy, 6.0);
-    pb_cg.move_to(poly_cx - 9.0, poly_cy);
-    pb_cg.line_to(poly_cx + 9.0, poly_cy);
-    pb_cg.move_to(poly_cx, poly_cy - 9.0);
-    pb_cg.line_to(poly_cx, poly_cy + 9.0);
-    if let Some(p) = pb_cg.finish() {
-        let s = Stroke {
-            width: 1.5,
-            ..Default::default()
-        };
-        pixmap.stroke_path(&p, &paint, &s, Transform::identity(), None);
-    }
-
-    // 2. Midpoint Glyph on Top Edge of Rectangle (Triangle)
-    let mid_x = page_x + 120.0;
-    let mid_y = page_y + 60.0;
-    let mut pb_mg = PathBuilder::new();
-    pb_mg.move_to(mid_x, mid_y - 6.0);
-    pb_mg.line_to(mid_x + 6.0, mid_y + 5.0);
-    pb_mg.line_to(mid_x - 6.0, mid_y + 5.0);
-    pb_mg.close();
-    if let Some(p) = pb_mg.finish() {
-        let s = Stroke {
-            width: 1.5,
-            ..Default::default()
-        };
-        pixmap.stroke_path(&p, &paint, &s, Transform::identity(), None);
-    }
-
-    // 3. Node / Corner Glyph on Active Snap Point (Diamond)
-    let mut pb_ng = PathBuilder::new();
-    let sz = 7.0_f32;
-    pb_ng.move_to(corner_x, corner_y - sz);
-    pb_ng.line_to(corner_x + sz, corner_y);
-    pb_ng.line_to(corner_x, corner_y + sz);
-    pb_ng.line_to(corner_x - sz, corner_y);
-    pb_ng.close();
-    if let Some(p) = pb_ng.finish() {
+    pb_hex.close();
+    if let Some(p) = pb_hex.finish() {
+        paint.set_color(Color::from_rgba8(255, 180, 0, 35));
+        pixmap.fill_path(&p, &paint, FillRule::Winding, Transform::identity(), None);
+        paint.set_color(Color::from_rgba8(255, 180, 0, 255));
         let s = Stroke {
             width: 1.8,
             ..Default::default()
@@ -603,39 +413,167 @@ pub fn render_ui_screenshot(output_path: &Path) -> Result<(), String> {
         pixmap.stroke_path(&p, &paint, &s, Transform::identity(), None);
     }
 
-    // E. Floating HUD Pill Badge near the active snap point
-    let hud_x = corner_x + 14.0;
-    let hud_y = corner_y - 28.0;
-    let hud_w = 145.0_f32;
-    let hud_h = 24.0_f32;
+    // Knife Slice Red Line cutting through the Hexagon
+    let cut_p0 = (hex_cx - 85.0, hex_cy - 45.0);
+    let cut_p1 = (hex_cx + 85.0, hex_cy + 45.0);
+    let mut pb_cut = PathBuilder::new();
+    pb_cut.move_to(cut_p0.0, cut_p0.1);
+    pb_cut.line_to(cut_p1.0, cut_p1.1);
+    if let Some(p) = pb_cut.finish() {
+        paint.set_color(laser_red);
+        let s_cut = Stroke {
+            width: 2.2,
+            ..Default::default()
+        };
+        pixmap.stroke_path(&p, &paint, &s_cut, Transform::identity(), None);
 
-    // Badge shadow
-    paint.set_color(Color::from_rgba8(0, 0, 0, 140));
-    let hud_s_rect = Rect::from_xywh(hud_x + 2.0, hud_y + 2.0, hud_w, hud_h).unwrap();
-    pixmap.fill_rect(hud_s_rect, &paint, Transform::identity(), None);
+        // Endpoint pins
+        let mut pb_pins = PathBuilder::new();
+        pb_pins.push_circle(cut_p0.0, cut_p0.1, 5.0);
+        pb_pins.push_circle(cut_p1.0, cut_p1.1, 5.0);
+        if let Some(pins) = pb_pins.finish() {
+            paint.set_color(laser_red);
+            pixmap.fill_path(
+                &pins,
+                &paint,
+                FillRule::Winding,
+                Transform::identity(),
+                None,
+            );
+            paint.set_color(Color::WHITE);
+            let s_white = Stroke {
+                width: 1.5,
+                ..Default::default()
+            };
+            pixmap.stroke_path(&pins, &paint, &s_white, Transform::identity(), None);
+        }
+    }
 
-    // Badge background
-    paint.set_color(Color::from_rgba8(22, 24, 29, 235));
-    let hud_rect = Rect::from_xywh(hud_x, hud_y, hud_w, hud_h).unwrap();
-    pixmap.fill_rect(hud_rect, &paint, Transform::identity(), None);
+    // D. Eraser Subtraction Path (Phase 4 Eraser Tool)
+    // Curving path subtracting an arc across a shape
+    let mut pb_erase_trail = PathBuilder::new();
+    let e_start = (page_x + 90.0, page_y + 400.0);
+    let e_ctrl = (page_x + 220.0, page_y + 360.0);
+    let e_end = (page_x + 320.0, page_y + 420.0);
+    pb_erase_trail.move_to(e_start.0, e_start.1);
+    pb_erase_trail.quad_to(e_ctrl.0, e_ctrl.1, e_end.0, e_end.1);
+    if let Some(p) = pb_erase_trail.finish() {
+        paint.set_color(Color::from_rgba8(255, 64, 96, 35));
+        let s_trail = Stroke {
+            width: 32.0,
+            ..Default::default()
+        };
+        pixmap.stroke_path(&p, &paint, &s_trail, Transform::identity(), None);
+    }
 
-    // Badge border (accent cyan)
-    paint.set_color(snap_teal);
-    let hud_p = PathBuilder::from_rect(hud_rect);
-    let hud_stroke = Stroke {
+    // Circular Eraser Brush Cursor
+    let mut pb_brush = PathBuilder::new();
+    pb_brush.push_circle(e_end.0, e_end.1, 16.0);
+    if let Some(p) = pb_brush.finish() {
+        paint.set_color(Color::from_rgba8(255, 64, 96, 30));
+        pixmap.fill_path(&p, &paint, FillRule::Winding, Transform::identity(), None);
+        paint.set_color(magenta_pink);
+        let s_brush = Stroke {
+            width: 1.8,
+            ..Default::default()
+        };
+        pixmap.stroke_path(&p, &paint, &s_brush, Transform::identity(), None);
+    }
+
+    // E. Vector Text Outlines: "VDRAW LASER CAD" (Phase 4 TrueType text outlines)
+    let text_origin_x = page_x + 60.0;
+    let text_origin_y = page_y + 540.0;
+    let glyph_data: &[&[(f32, f32)]] = &[
+        // V
+        &[(0.0, 0.0), (16.0, 48.0), (32.0, 0.0)],
+        // D
+        &[
+            (44.0, 48.0),
+            (44.0, 0.0),
+            (62.0, 0.0),
+            (74.0, 14.0),
+            (74.0, 34.0),
+            (62.0, 48.0),
+            (44.0, 48.0),
+        ],
+        // R
+        &[
+            (86.0, 48.0),
+            (86.0, 0.0),
+            (106.0, 0.0),
+            (116.0, 10.0),
+            (106.0, 24.0),
+            (86.0, 24.0),
+        ],
+        // A
+        &[(126.0, 48.0), (140.0, 0.0), (154.0, 48.0)],
+        // W
+        &[
+            (164.0, 0.0),
+            (174.0, 48.0),
+            (184.0, 16.0),
+            (194.0, 48.0),
+            (204.0, 0.0),
+        ],
+    ];
+
+    for glyph in glyph_data {
+        let mut pb = PathBuilder::new();
+        for (idx, &(gx, gy)) in glyph.iter().enumerate() {
+            let px = text_origin_x + gx;
+            let py = text_origin_y + gy;
+            if idx == 0 {
+                pb.move_to(px, py);
+            } else {
+                pb.line_to(px, py);
+            }
+        }
+        if let Some(p) = pb.finish() {
+            paint.set_color(Color::from_rgba8(124, 92, 255, 30));
+            pixmap.fill_path(&p, &paint, FillRule::Winding, Transform::identity(), None);
+            paint.set_color(accent);
+            let s_text = Stroke {
+                width: 2.0,
+                ..Default::default()
+            };
+            pixmap.stroke_path(&p, &paint, &s_text, Transform::identity(), None);
+        }
+    }
+
+    // ── 11. Sleek Floating HUD Toast Notification ─────────────────────────
+    let toast_w = 320.0;
+    let toast_h = 36.0;
+    let toast_x = canvas_x + canvas_w - toast_w - 24.0;
+    let toast_y = canvas_y + canvas_h - toast_h - 20.0;
+
+    // Toast Shadow
+    paint.set_color(Color::from_rgba8(0, 0, 0, 160));
+    let toast_s_rect = Rect::from_xywh(toast_x + 2.0, toast_y + 4.0, toast_w, toast_h).unwrap();
+    pixmap.fill_rect(toast_s_rect, &paint, Transform::identity(), None);
+
+    // Toast Body
+    paint.set_color(Color::from_rgba8(24, 27, 34, 248));
+    let toast_rect = Rect::from_xywh(toast_x, toast_y, toast_w, toast_h).unwrap();
+    pixmap.fill_rect(toast_rect, &paint, Transform::identity(), None);
+
+    // Toast Glowing Violet Border
+    paint.set_color(accent);
+    let p_toast = PathBuilder::from_rect(toast_rect);
+    let s_toast = Stroke {
         width: 1.2,
         ..Default::default()
     };
-    pixmap.stroke_path(&hud_p, &paint, &hud_stroke, Transform::identity(), None);
+    pixmap.stroke_path(&p_toast, &paint, &s_toast, Transform::identity(), None);
 
-    // Badge indicator dot
-    let mut pb_hdot = PathBuilder::new();
-    pb_hdot.push_circle(hud_x + 10.0, hud_y + 12.0, 3.5);
-    if let Some(p) = pb_hdot.finish() {
+    // Toast Accent Dot
+    let mut pb_tdot = PathBuilder::new();
+    pb_tdot.push_circle(toast_x + 16.0, toast_y + 18.0, 4.0);
+    if let Some(p) = pb_tdot.finish() {
+        paint.set_color(teal_guide);
         pixmap.fill_path(&p, &paint, FillRule::Winding, Transform::identity(), None);
     }
 
-    // 11. Rulers (Top: Y = 68..88, Left: X = 48..68)
+    // 12. Rulers (Top: Y = 68..88, Left: X = 48..68)
     paint.set_color(bg_panel);
     let top_ruler = Rect::from_xywh(canvas_x, canvas_y, canvas_w, 20.0).unwrap();
     let left_ruler = Rect::from_xywh(canvas_x, canvas_y, 20.0, canvas_h).unwrap();
@@ -691,7 +629,7 @@ mod tests {
     #[test]
     fn test_render_screenshot() {
         let temp_dir = std::env::temp_dir();
-        let test_path = temp_dir.join("vdraw_test_screenshot_p2.png");
+        let test_path = temp_dir.join("vdraw_test_screenshot_p4.png");
         let res = render_ui_screenshot(&test_path);
         assert!(res.is_ok(), "Screenshot generation failed: {:?}", res.err());
         assert!(test_path.exists(), "Screenshot file does not exist");
