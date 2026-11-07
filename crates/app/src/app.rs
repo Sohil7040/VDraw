@@ -109,12 +109,24 @@ impl eframe::App for VDrawApp {
                 if i.key_pressed(egui::Key::V) {
                     self.toolbar.active_tool = ToolId::Pick;
                     self.tool_manager.set_tool(ToolId::Pick);
+                } else if i.key_pressed(egui::Key::F10) {
+                    self.toolbar.active_tool = ToolId::Shape;
+                    self.tool_manager.set_tool(ToolId::Shape);
+                } else if i.key_pressed(egui::Key::F5) {
+                    self.toolbar.active_tool = ToolId::Freehand;
+                    self.tool_manager.set_tool(ToolId::Freehand);
                 } else if i.key_pressed(egui::Key::F6) {
                     self.toolbar.active_tool = ToolId::Rectangle;
                     self.tool_manager.set_tool(ToolId::Rectangle);
                 } else if i.key_pressed(egui::Key::F7) {
                     self.toolbar.active_tool = ToolId::Ellipse;
                     self.tool_manager.set_tool(ToolId::Ellipse);
+                } else if i.key_pressed(egui::Key::Y) {
+                    self.toolbar.active_tool = ToolId::Polygon;
+                    self.tool_manager.set_tool(ToolId::Polygon);
+                } else if i.key_pressed(egui::Key::A) {
+                    self.toolbar.active_tool = ToolId::Spiral;
+                    self.tool_manager.set_tool(ToolId::Spiral);
                 } else if i.key_pressed(egui::Key::L) {
                     self.toolbar.active_tool = ToolId::Line;
                     self.tool_manager.set_tool(ToolId::Line);
@@ -324,6 +336,16 @@ impl eframe::App for VDrawApp {
                             self.tool_manager.set_tool(ToolId::Pick);
                             ui.close_menu();
                         }
+                        if ui.button("Shape / Node Tool (F10)").clicked() {
+                            self.toolbar.active_tool = ToolId::Shape;
+                            self.tool_manager.set_tool(ToolId::Shape);
+                            ui.close_menu();
+                        }
+                        if ui.button("Freehand Tool (F5)").clicked() {
+                            self.toolbar.active_tool = ToolId::Freehand;
+                            self.tool_manager.set_tool(ToolId::Freehand);
+                            ui.close_menu();
+                        }
                         if ui.button("Rectangle (F6)").clicked() {
                             self.toolbar.active_tool = ToolId::Rectangle;
                             self.tool_manager.set_tool(ToolId::Rectangle);
@@ -332,6 +354,21 @@ impl eframe::App for VDrawApp {
                         if ui.button("Ellipse (F7)").clicked() {
                             self.toolbar.active_tool = ToolId::Ellipse;
                             self.tool_manager.set_tool(ToolId::Ellipse);
+                            ui.close_menu();
+                        }
+                        if ui.button("Polygon (Y)").clicked() {
+                            self.toolbar.active_tool = ToolId::Polygon;
+                            self.tool_manager.set_tool(ToolId::Polygon);
+                            ui.close_menu();
+                        }
+                        if ui.button("Star").clicked() {
+                            self.toolbar.active_tool = ToolId::Star;
+                            self.tool_manager.set_tool(ToolId::Star);
+                            ui.close_menu();
+                        }
+                        if ui.button("Spiral (A)").clicked() {
+                            self.toolbar.active_tool = ToolId::Spiral;
+                            self.tool_manager.set_tool(ToolId::Spiral);
                             ui.close_menu();
                         }
                         if ui.button("2-Point Line (L)").clicked() {
@@ -371,7 +408,12 @@ impl eframe::App for VDrawApp {
                         .stroke(egui::Stroke::new(1.0, theme::BORDER)),
                 )
                 .show(ctx, |ui| {
-                    crate::panels::properties::show_prop_bar(ui, &self.doc);
+                    crate::panels::properties::show_prop_bar(
+                        ui,
+                        &mut self.doc,
+                        &mut self.undo_stack,
+                        &mut self.tool_manager,
+                    );
                 });
         }
 
@@ -426,7 +468,12 @@ impl eframe::App for VDrawApp {
                     egui::ScrollArea::vertical()
                         .id_salt("right_dock_scroll")
                         .show(ui, |ui| {
-                            dock::show_dock_content(ui, &self.dock);
+                            dock::show_dock_content(
+                                ui,
+                                &self.dock,
+                                &mut self.doc,
+                                &mut self.undo_stack,
+                            );
                         });
                 });
         }

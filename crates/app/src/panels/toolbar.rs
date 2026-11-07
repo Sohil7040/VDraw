@@ -30,6 +30,10 @@ static SELECTION_GROUP: &[ToolEntry] = &[
         icon: "↖",
     },
     ToolEntry {
+        id: ToolId::Shape,
+        icon: "☩",
+    },
+    ToolEntry {
         id: ToolId::FreeTransform,
         icon: "⤡",
     },
@@ -59,6 +63,10 @@ static DRAWING_GROUP: &[ToolEntry] = &[
     ToolEntry {
         id: ToolId::Polygon,
         icon: "⬡",
+    },
+    ToolEntry {
+        id: ToolId::Star,
+        icon: "★",
     },
     ToolEntry {
         id: ToolId::Spiral,

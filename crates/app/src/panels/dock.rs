@@ -59,7 +59,12 @@ pub fn show_dock_tabs(ui: &mut egui::Ui, state: &mut DockState) {
 }
 
 /// Show the content area for the currently active dock tab.
-pub fn show_dock_content(ui: &mut egui::Ui, state: &DockState) {
+pub fn show_dock_content(
+    ui: &mut egui::Ui,
+    state: &DockState,
+    doc: &mut core_doc::Document,
+    undo: &mut core_doc::UndoStack,
+) {
     match state.active_tab {
         DockTab::Objects => {
             super::object_manager::show_object_manager(ui);
@@ -68,7 +73,7 @@ pub fn show_dock_content(ui: &mut egui::Ui, state: &DockState) {
             show_properties_panel(ui);
         }
         DockTab::Colors => {
-            show_colors_panel(ui);
+            super::fill_stroke::show_fill_stroke_panel(ui, doc, undo);
         }
         DockTab::Align => {
             show_align_panel(ui);
@@ -87,15 +92,6 @@ fn show_properties_panel(ui: &mut egui::Ui) {
             .color(egui::Color32::from_gray(110))
             .italics(),
     );
-}
-
-fn show_colors_panel(ui: &mut egui::Ui) {
-    ui.heading("Colors");
-    ui.separator();
-    ui.label("Fill:");
-    ui.color_edit_button_srgba(&mut egui::Color32::from_rgb(0, 0, 0));
-    ui.label("Stroke:");
-    ui.color_edit_button_srgba(&mut egui::Color32::from_rgb(0, 0, 0));
 }
 
 fn show_align_panel(ui: &mut egui::Ui) {

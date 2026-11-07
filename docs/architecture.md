@@ -69,10 +69,25 @@ where `PX_PER_MM = 96.0 / 25.4 ≈ 3.7795`
 - **`Tool` Trait:** Pointer down/move/up, key events, overlays, and contextual cursors.
 - **Tools:**
   - `PickTool`: Selection, rubber band marquee, 8-handle scaling with opposite anchor pinning, rotation around pivot with 15° snapping, and mode toggling.
-  - `RectangleTool`: Interactive drag, Shift-centered, Ctrl-square constraints.
-  - `EllipseTool`: Interactive drag, Shift-centered, Ctrl-circle constraints.
-  - `LineTool`: 2-point line with 15° angle snapping.
-  - `PenTool`: Anchor placement, smooth handle pulling, rubber-band curve preview, and path closure.
+  - `ShapeTool`: Node tool (`F10`) for direct anchor point dragging, handle adjustment with live constraint propagation (`Cusp`, `Smooth`, `Symmetrical`), double-click segment splitting, and node deletion.
+  - `FreehandTool`: Interactive stylus/mouse drawing with Schneider cubic Bézier curve fitting (`F5`).
+  - `RectangleTool`: Interactive drag, Shift-centered, Ctrl-square constraints (`F6`).
+  - `EllipseTool`: Interactive drag, Shift-centered, Ctrl-circle constraints (`F7`).
+  - `PolygonTool`: Regular $N$-sided polygon creation ($3..50$ sides, `Y`).
+  - `StarTool`: Parametric star creation with configurable points and sharpness ratio (`S`).
+  - `SpiralTool`: Archimedean spiral creation with configurable expansion and turns (`A`).
+  - `LineTool`: 2-point line with 15° angle snapping (`L`).
+  - `PenTool`: Anchor placement, smooth handle pulling, rubber-band curve preview, and path closure (`B`).
+
+### 4. Curve Fitting Engine (`core-geom::curve_fit`)
+- Philip J. Schneider's algorithm (Graphics Gems I) for automatic curve fitting.
+- Chord-length parameterization, least-squares cubic Bézier fitting, Newton-Raphson parameter re-estimation, and recursive subdivision at maximum error points.
+
+### 5. Fill & Stroke Subsystem (`app::panels::fill_stroke`)
+- Live inspection and editing of shape fill, stroke color, and stroke width.
+- Hairline classification: Automatic recognition of hairline strokes ($\le 0.1\text{ mm}$) for laser cutting (`#FF0000`) and laser scoring (`#0000FF`).
+- Line Cap (`Butt`, `Round`, `Square`) and Line Join (`Miter`, `Round`, `Bevel`) configuration.
+- Undoable style synchronization via `SetStyleCommand`.
 
 ## Panel Layout
 

@@ -10,8 +10,8 @@ pub mod units;
 
 pub use color::Color;
 pub use command::{
-    AddShapeCommand, Command, CompoundCommand, RemoveShapesCommand, TransformShapesCommand,
-    UndoStack,
+    AddShapeCommand, Command, CompoundCommand, ModifyShapeKindCommand, RemoveShapesCommand,
+    SetStyleCommand, TransformShapesCommand, UndoStack,
 };
 pub use document::{Document, Layer, Page};
 pub use selection::{HandleId, HandleInfo, Selection, TransformMode};

@@ -21,6 +21,7 @@ pub fn render_ui_screenshot(output_path: &Path) -> Result<(), String> {
     let text_secondary = Color::from_rgba8(0x8B, 0x91, 0xA1, 255);
     let grid_line = Color::from_rgba8(0x2E, 0x33, 0x3E, 120);
     let laser_red = Color::from_rgba8(0xFF, 0x33, 0x44, 255);
+    let laser_blue = Color::from_rgba8(0x33, 0x88, 0xFF, 255);
     let teal_guide = Color::from_rgba8(0x20, 0xD3, 0xB5, 255);
 
     // 1. Fill entire window with base background
@@ -45,6 +46,30 @@ pub fn render_ui_screenshot(output_path: &Path) -> Result<(), String> {
     let line_rect = Rect::from_xywh(0.0, 67.0, width as f32, 1.0).unwrap();
     pixmap.fill_rect(line_rect, &paint, Transform::identity(), None);
 
+    // Property bar buttons for Shape/Node tool (Cusp, Smooth, Symmetrical, Delete)
+    let node_btn_w = 70.0;
+    let node_btn_h = 24.0;
+    let mut btn_x = 180.0;
+    for &btn_label_col in &[
+        Color::from_rgba8(124, 92, 255, 60),  // Active tool badge
+        Color::from_rgba8(46, 51, 62, 255),   // Cusp
+        Color::from_rgba8(124, 92, 255, 255), // Smooth (selected)
+        Color::from_rgba8(46, 51, 62, 255),   // Symmetrical
+        Color::from_rgba8(60, 30, 35, 255),   // Delete Node
+    ] {
+        paint.set_color(btn_label_col);
+        let b_rect = Rect::from_xywh(btn_x, 38.0, node_btn_w, node_btn_h).unwrap();
+        pixmap.fill_rect(b_rect, &paint, Transform::identity(), None);
+        paint.set_color(border);
+        let stroke_btn = Stroke {
+            width: 1.0,
+            ..Default::default()
+        };
+        let p_btn = PathBuilder::from_rect(b_rect);
+        pixmap.stroke_path(&p_btn, &paint, &stroke_btn, Transform::identity(), None);
+        btn_x += node_btn_w + 8.0;
+    }
+
     // 4. Status bar (Height 24, Y = 876..900)
     paint.set_color(bg_panel);
     let status_rect = Rect::from_xywh(0.0, 876.0, width as f32, 24.0).unwrap();
@@ -61,9 +86,9 @@ pub fn render_ui_screenshot(output_path: &Path) -> Result<(), String> {
     let line_rect = Rect::from_xywh(47.0, 68.0, 1.0, 808.0).unwrap();
     pixmap.fill_rect(line_rect, &paint, Transform::identity(), None);
 
-    // Active tool highlight (Pick Tool)
+    // Active tool highlight: Shape / Node Tool (Tool 2, Y = 118)
     paint.set_color(bg_active);
-    let active_tool_box = Rect::from_xywh(4.0, 74.0, 40.0, 40.0).unwrap();
+    let active_tool_box = Rect::from_xywh(4.0, 118.0, 40.0, 40.0).unwrap();
     pixmap.fill_rect(active_tool_box, &paint, Transform::identity(), None);
     paint.set_color(accent);
     let stroke = Stroke {
@@ -73,28 +98,111 @@ pub fn render_ui_screenshot(output_path: &Path) -> Result<(), String> {
     let path = PathBuilder::from_rect(active_tool_box);
     pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
 
-    // 6. Right Dock Panel (Width 260, X = 1180..1440, Y = 68..876)
+    // 6. Right Dock Panel (Width 280, X = 1160..1440, Y = 68..876)
     paint.set_color(bg_panel);
-    let dock_rect = Rect::from_xywh(1180.0, 68.0, 260.0, 808.0).unwrap();
+    let dock_rect = Rect::from_xywh(1160.0, 68.0, 280.0, 808.0).unwrap();
     pixmap.fill_rect(dock_rect, &paint, Transform::identity(), None);
     paint.set_color(border);
-    let line_rect = Rect::from_xywh(1180.0, 68.0, 1.0, 808.0).unwrap();
+    let line_rect = Rect::from_xywh(1160.0, 68.0, 1.0, 808.0).unwrap();
     pixmap.fill_rect(line_rect, &paint, Transform::identity(), None);
 
     // Dock tab headers
     paint.set_color(bg_widget);
-    let tabs_rect = Rect::from_xywh(1188.0, 76.0, 244.0, 32.0).unwrap();
+    let tabs_rect = Rect::from_xywh(1168.0, 76.0, 264.0, 32.0).unwrap();
     pixmap.fill_rect(tabs_rect, &paint, Transform::identity(), None);
 
-    // Active tab indicator (Objects)
+    // Active tab indicator on Tab 3: Colors / Fill & Stroke
     paint.set_color(accent);
-    let active_tab_line = Rect::from_xywh(1192.0, 106.0, 50.0, 2.0).unwrap();
+    let active_tab_line = Rect::from_xywh(1265.0, 106.0, 56.0, 2.0).unwrap();
     pixmap.fill_rect(active_tab_line, &paint, Transform::identity(), None);
 
-    // 7. Central Canvas Area (X = 48..1180, Y = 68..876)
+    // ── Fill & Stroke Panel Controls in Right Dock ─────────────────────────
+
+    // Fill Group Box (Y = 124..224)
+    paint.set_color(bg_widget);
+    let fill_box = Rect::from_xywh(1172.0, 124.0, 256.0, 96.0).unwrap();
+    pixmap.fill_rect(fill_box, &paint, Transform::identity(), None);
+    paint.set_color(border);
+    let stroke_1px = Stroke {
+        width: 1.0,
+        ..Default::default()
+    };
+    let p_fbox = PathBuilder::from_rect(fill_box);
+    pixmap.stroke_path(&p_fbox, &paint, &stroke_1px, Transform::identity(), None);
+
+    // Fill color preview square (Violet)
+    paint.set_color(accent);
+    let fill_swatch = Rect::from_xywh(1184.0, 154.0, 24.0, 24.0).unwrap();
+    pixmap.fill_rect(fill_swatch, &paint, Transform::identity(), None);
+
+    // Quick swatches in Fill
+    let swatch_colors = [
+        Color::from_rgba8(255, 0, 0, 255),
+        Color::from_rgba8(0, 0, 255, 255),
+        Color::from_rgba8(0, 0, 0, 255),
+        Color::from_rgba8(124, 92, 255, 255),
+        Color::from_rgba8(32, 211, 181, 255),
+        Color::from_rgba8(255, 120, 0, 255),
+        Color::from_rgba8(255, 210, 0, 255),
+        Color::from_rgba8(0, 200, 100, 255),
+    ];
+    for (si, &sc) in swatch_colors.iter().enumerate() {
+        paint.set_color(sc);
+        let sw_r = Rect::from_xywh(1218.0 + (si as f32) * 25.0, 156.0, 18.0, 18.0).unwrap();
+        pixmap.fill_rect(sw_r, &paint, Transform::identity(), None);
+    }
+
+    // Stroke Group Box (Y = 232..400)
+    paint.set_color(bg_widget);
+    let stroke_box = Rect::from_xywh(1172.0, 232.0, 256.0, 168.0).unwrap();
+    pixmap.fill_rect(stroke_box, &paint, Transform::identity(), None);
+    paint.set_color(border);
+    let p_sbox = PathBuilder::from_rect(stroke_box);
+    pixmap.stroke_path(&p_sbox, &paint, &stroke_1px, Transform::identity(), None);
+
+    // Stroke color preview square (Laser Red)
+    paint.set_color(laser_red);
+    let stroke_swatch = Rect::from_xywh(1184.0, 262.0, 24.0, 24.0).unwrap();
+    pixmap.fill_rect(stroke_swatch, &paint, Transform::identity(), None);
+
+    // Quick swatches in Stroke
+    for (si, &sc) in swatch_colors.iter().enumerate() {
+        paint.set_color(sc);
+        let sw_r = Rect::from_xywh(1218.0 + (si as f32) * 25.0, 264.0, 18.0, 18.0).unwrap();
+        pixmap.fill_rect(sw_r, &paint, Transform::identity(), None);
+    }
+
+    // Hairline Laser Cut Badge
+    paint.set_color(Color::from_rgba8(255, 51, 68, 40));
+    let badge_rect = Rect::from_xywh(1184.0, 302.0, 232.0, 26.0).unwrap();
+    pixmap.fill_rect(badge_rect, &paint, Transform::identity(), None);
+    paint.set_color(laser_red);
+    let p_badge = PathBuilder::from_rect(badge_rect);
+    pixmap.stroke_path(&p_badge, &paint, &stroke_1px, Transform::identity(), None);
+
+    // Preset width buttons
+    for &(bw_col, bi) in &[
+        (laser_red, 1184.0),
+        (laser_blue, 1244.0),
+        (bg_active, 1304.0),
+        (bg_active, 1364.0),
+    ] {
+        paint.set_color(bw_col);
+        let pb = Rect::from_xywh(bi, 340.0, 52.0, 22.0).unwrap();
+        pixmap.fill_rect(pb, &paint, Transform::identity(), None);
+    }
+
+    // Cap/Join toggle buttons
+    for &(cw_col, ci) in &[(bg_active, 1184.0), (accent, 1224.0), (bg_active, 1264.0)] {
+        paint.set_color(cw_col);
+        let cb = Rect::from_xywh(ci, 370.0, 36.0, 20.0).unwrap();
+        pixmap.fill_rect(cb, &paint, Transform::identity(), None);
+    }
+
+    // 7. Central Canvas Area (X = 48..1160, Y = 68..876)
     let canvas_x = 48.0;
     let canvas_y = 68.0;
-    let canvas_w = 1132.0;
+    let canvas_w = 1112.0;
     let canvas_h = 808.0;
 
     paint.set_color(canvas_bg);
@@ -103,10 +211,6 @@ pub fn render_ui_screenshot(output_path: &Path) -> Result<(), String> {
 
     // 8. Grid lines
     paint.set_color(grid_line);
-    let stroke_1px = Stroke {
-        width: 1.0,
-        ..Default::default()
-    };
     for gx in (canvas_x as i32 + 20..canvas_x as i32 + canvas_w as i32).step_by(38) {
         let mut pb = PathBuilder::new();
         pb.move_to(gx as f32, canvas_y + 20.0);
@@ -149,7 +253,7 @@ pub fn render_ui_screenshot(output_path: &Path) -> Result<(), String> {
 
     // A. Hairline Red Laser Cut Rectangle
     paint.set_color(laser_red);
-    let cut_rect = Rect::from_xywh(page_x + 60.0, page_y + 80.0, 180.0, 120.0).unwrap();
+    let cut_rect = Rect::from_xywh(page_x + 40.0, page_y + 60.0, 160.0, 100.0).unwrap();
     let cut_stroke = Stroke {
         width: 1.5,
         ..Default::default()
@@ -161,9 +265,9 @@ pub fn render_ui_screenshot(output_path: &Path) -> Result<(), String> {
     paint.set_color(Color::from_rgba8(32, 211, 181, 40));
     let mut pb_ellipse = PathBuilder::new();
     let ex = page_x + 320.0;
-    let ey = page_y + 140.0;
-    let erx = 90.0_f32;
-    let ery = 60.0_f32;
+    let ey = page_y + 110.0;
+    let erx = 80.0_f32;
+    let ery = 50.0_f32;
     let ekx = erx * 0.552_284_8;
     let eky = ery * 0.552_284_8;
 
@@ -180,60 +284,93 @@ pub fn render_ui_screenshot(output_path: &Path) -> Result<(), String> {
         pixmap.stroke_path(&p, &paint, &cut_stroke, Transform::identity(), None);
     }
 
-    // C. Selected Shape with 8-Handle Selection Box
-    let sel_x = page_x + 120.0;
-    let sel_y = page_y + 260.0;
-    let sel_w = 240.0;
-    let sel_h = 160.0;
-    let sel_rect = Rect::from_xywh(sel_x, sel_y, sel_w, sel_h).unwrap();
-
-    // Soft fill + stroke for the selected shape
-    paint.set_color(Color::from_rgba8(124, 92, 255, 30));
-    pixmap.fill_rect(sel_rect, &paint, Transform::identity(), None);
-    paint.set_color(accent);
-    let sel_stroke = Stroke {
-        width: 1.5,
-        ..Default::default()
-    };
-    let path = PathBuilder::from_rect(sel_rect);
-    pixmap.stroke_path(&path, &paint, &sel_stroke, Transform::identity(), None);
-
-    // 8 Selection Handles
-    let handle_coords = [
-        (sel_x, sel_y),
-        (sel_x + sel_w * 0.5, sel_y),
-        (sel_x + sel_w, sel_y),
-        (sel_x + sel_w, sel_y + sel_h * 0.5),
-        (sel_x + sel_w, sel_y + sel_h),
-        (sel_x + sel_w * 0.5, sel_y + sel_h),
-        (sel_x, sel_y + sel_h),
-        (sel_x, sel_y + sel_h * 0.5),
-    ];
-
-    paint.set_color(Color::WHITE);
-    let handle_stroke = Stroke {
-        width: 1.2,
-        ..Default::default()
-    };
-    for &(hx, hy) in &handle_coords {
-        let h_box = Rect::from_xywh(hx - 4.0, hy - 4.0, 8.0, 8.0).unwrap();
-        pixmap.fill_rect(h_box, &paint, Transform::identity(), None);
-        paint.set_color(accent);
-        let p = PathBuilder::from_rect(h_box);
-        pixmap.stroke_path(&p, &paint, &handle_stroke, Transform::identity(), None);
-        paint.set_color(Color::WHITE);
+    // C. Regular Polygon (Pentagon) - Phase 2
+    let mut pb_poly = PathBuilder::new();
+    let poly_cx = page_x + 120.0;
+    let poly_cy = page_y + 240.0;
+    let poly_r = 50.0_f32;
+    for i in 0..5 {
+        let angle = (i as f32) * std::f32::consts::TAU / 5.0 - std::f32::consts::FRAC_PI_2;
+        let px = poly_cx + poly_r * angle.cos();
+        let py = poly_cy + poly_r * angle.sin();
+        if i == 0 {
+            pb_poly.move_to(px, py);
+        } else {
+            pb_poly.line_to(px, py);
+        }
+    }
+    pb_poly.close();
+    if let Some(p) = pb_poly.finish() {
+        paint.set_color(Color::from_rgba8(0, 200, 100, 35));
+        pixmap.fill_path(&p, &paint, FillRule::Winding, Transform::identity(), None);
+        paint.set_color(Color::from_rgba8(0, 200, 100, 255));
+        pixmap.stroke_path(&p, &paint, &cut_stroke, Transform::identity(), None);
     }
 
-    // D. Pen Tool Bézier Curve with handles
-    let mut pb_pen = PathBuilder::new();
-    let p0 = (page_x + 80.0, page_y + 520.0);
-    let p1 = (page_x + 180.0, page_y + 440.0);
-    let p2 = (page_x + 280.0, page_y + 580.0);
-    let p3 = (page_x + 380.0, page_y + 500.0);
+    // D. 5-Point Star - Phase 2
+    let mut pb_star = PathBuilder::new();
+    let star_cx = page_x + 280.0;
+    let star_cy = page_y + 240.0;
+    let star_ro = 50.0_f32;
+    let star_ri = 22.0_f32;
+    for i in 0..10 {
+        let r = if i % 2 == 0 { star_ro } else { star_ri };
+        let angle = (i as f32) * std::f32::consts::TAU / 10.0 - std::f32::consts::FRAC_PI_2;
+        let px = star_cx + r * angle.cos();
+        let py = star_cy + r * angle.sin();
+        if i == 0 {
+            pb_star.move_to(px, py);
+        } else {
+            pb_star.line_to(px, py);
+        }
+    }
+    pb_star.close();
+    if let Some(p) = pb_star.finish() {
+        paint.set_color(Color::from_rgba8(255, 210, 0, 40));
+        pixmap.fill_path(&p, &paint, FillRule::Winding, Transform::identity(), None);
+        paint.set_color(Color::from_rgba8(255, 180, 0, 255));
+        pixmap.stroke_path(&p, &paint, &cut_stroke, Transform::identity(), None);
+    }
 
-    pb_pen.move_to(p0.0, p0.1);
-    pb_pen.cubic_to(p1.0, p1.1, p2.0, p2.1, p3.0, p3.1);
-    if let Some(p) = pb_pen.finish() {
+    // E. Archimedean Spiral - Phase 2
+    let mut pb_spiral = PathBuilder::new();
+    let sp_cx = page_x + 400.0;
+    let sp_cy = page_y + 240.0;
+    let turns = 2.5_f32;
+    let total_angle = turns * std::f32::consts::TAU;
+    let sp_expansion = 42.0_f32;
+    let steps = 60;
+    for i in 0..=steps {
+        let frac = (i as f32) / (steps as f32);
+        let theta = frac * total_angle;
+        let r = frac * sp_expansion;
+        let px = sp_cx + r * theta.cos();
+        let py = sp_cy + r * theta.sin();
+        if i == 0 {
+            pb_spiral.move_to(px, py);
+        } else {
+            pb_spiral.line_to(px, py);
+        }
+    }
+    if let Some(p) = pb_spiral.finish() {
+        paint.set_color(accent);
+        let sp_stroke = Stroke {
+            width: 1.8,
+            ..Default::default()
+        };
+        pixmap.stroke_path(&p, &paint, &sp_stroke, Transform::identity(), None);
+    }
+
+    // F. Node / Curve Editing with ShapeTool (Anchor points + control handles) - Phase 2
+    let mut pb_curve = PathBuilder::new();
+    let p0 = (page_x + 80.0, page_y + 480.0);
+    let p1 = (page_x + 170.0, page_y + 380.0);
+    let p2 = (page_x + 290.0, page_y + 560.0);
+    let p3 = (page_x + 400.0, page_y + 460.0);
+
+    pb_curve.move_to(p0.0, p0.1);
+    pb_curve.cubic_to(p1.0, p1.1, p2.0, p2.1, p3.0, p3.1);
+    if let Some(p) = pb_curve.finish() {
         paint.set_color(accent);
         let pen_stroke = Stroke {
             width: 2.0,
@@ -262,12 +399,12 @@ pub fn render_ui_screenshot(output_path: &Path) -> Result<(), String> {
             pixmap.stroke_path(&pt2, &paint, &tangent_stroke, Transform::identity(), None);
         }
 
-        // Handle circles
+        // Circular control handle endpoints (Teal)
         let h_circle = |px: &mut Pixmap, x: f32, y: f32, col: Color| {
             let mut paint = Paint::default();
             paint.set_color(col);
             let mut pb = PathBuilder::new();
-            pb.push_circle(x, y, 3.5);
+            pb.push_circle(x, y, 4.0);
             if let Some(c) = pb.finish() {
                 px.fill_path(&c, &paint, FillRule::Winding, Transform::identity(), None);
             }
@@ -275,6 +412,25 @@ pub fn render_ui_screenshot(output_path: &Path) -> Result<(), String> {
 
         h_circle(&mut pixmap, p1.0, p1.1, teal_guide);
         h_circle(&mut pixmap, p2.0, p2.1, teal_guide);
+
+        // Square Anchor Points (7x7 px, Violet for selected, White for unselected)
+        let draw_anchor = |px: &mut Pixmap, x: f32, y: f32, is_sel: bool| {
+            let mut paint = Paint::default();
+            let rect = Rect::from_xywh(x - 4.0, y - 4.0, 8.0, 8.0).unwrap();
+            let fill_col = if is_sel { accent } else { Color::WHITE };
+            paint.set_color(fill_col);
+            px.fill_rect(rect, &paint, Transform::identity(), None);
+            paint.set_color(Color::from_rgba8(22, 24, 29, 255));
+            let s_stroke = Stroke {
+                width: 1.2,
+                ..Default::default()
+            };
+            let p = PathBuilder::from_rect(rect);
+            px.stroke_path(&p, &paint, &s_stroke, Transform::identity(), None);
+        };
+
+        draw_anchor(&mut pixmap, p0.0, p0.1, false);
+        draw_anchor(&mut pixmap, p3.0, p3.1, true); // Selected anchor point
     }
 
     // 11. Rulers (Top: Y = 68..88, Left: X = 48..68)
@@ -333,7 +489,7 @@ mod tests {
     #[test]
     fn test_render_screenshot() {
         let temp_dir = std::env::temp_dir();
-        let test_path = temp_dir.join("vdraw_test_screenshot.png");
+        let test_path = temp_dir.join("vdraw_test_screenshot_p2.png");
         let res = render_ui_screenshot(&test_path);
         assert!(res.is_ok(), "Screenshot generation failed: {:?}", res.err());
         assert!(test_path.exists(), "Screenshot file does not exist");

@@ -6,6 +6,7 @@ use core_geom::Point2;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ToolId {
     Pick,
+    Shape,
     FreeTransform,
     Pen,
     Line,
@@ -13,6 +14,7 @@ pub enum ToolId {
     Rectangle,
     Ellipse,
     Polygon,
+    Star,
     Spiral,
     Eraser,
     Knife,
@@ -25,6 +27,7 @@ impl ToolId {
     pub fn label(self) -> &'static str {
         match self {
             ToolId::Pick => "Pick",
+            ToolId::Shape => "Shape / Node",
             ToolId::FreeTransform => "Free Transform",
             ToolId::Pen => "Pen",
             ToolId::Line => "2-Point Line",
@@ -32,6 +35,7 @@ impl ToolId {
             ToolId::Rectangle => "Rectangle",
             ToolId::Ellipse => "Ellipse",
             ToolId::Polygon => "Polygon",
+            ToolId::Star => "Star",
             ToolId::Spiral => "Spiral",
             ToolId::Eraser => "Eraser",
             ToolId::Knife => "Knife",
@@ -44,6 +48,7 @@ impl ToolId {
     pub fn shortcut(self) -> &'static str {
         match self {
             ToolId::Pick => "V",
+            ToolId::Shape => "F10",
             ToolId::FreeTransform => "Tab",
             ToolId::Pen => "B",
             ToolId::Line => "L",
@@ -51,6 +56,7 @@ impl ToolId {
             ToolId::Rectangle => "F6",
             ToolId::Ellipse => "F7",
             ToolId::Polygon => "Y",
+            ToolId::Star => "S",
             ToolId::Spiral => "A",
             ToolId::Eraser => "X",
             ToolId::Knife => "K",
@@ -62,7 +68,10 @@ impl ToolId {
 }
 
 /// The Tool trait governing tool interactions, overlays, and state changes.
-pub trait Tool: std::fmt::Debug + Send + Sync {
+pub trait Tool: std::fmt::Debug + Send + Sync + 'static {
+    fn as_any(&self) -> &dyn std::any::Any;
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
+
     fn id(&self) -> ToolId;
 
     fn on_pointer_down(

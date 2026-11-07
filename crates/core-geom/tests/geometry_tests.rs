@@ -239,4 +239,91 @@ proptest! {
             prop_assert!(pt_m.distance_to(q) >= dist - 1e-6);
         }
     }
+
+    #[test]
+    fn prop_fit_curve_preserves_endpoints(
+        x0 in -100.0..100.0f64, y0 in -100.0..100.0f64,
+        x1 in -100.0..100.0f64, y1 in -100.0..100.0f64,
+        x2 in -100.0..100.0f64, y2 in -100.0..100.0f64,
+    ) {
+        let pts = vec![
+            Point2::new(x0, y0),
+            Point2::new(x1, y1),
+            Point2::new(x2, y2),
+        ];
+        let sub = core_geom::fit_curve(&pts, 2.0);
+        if !sub.is_empty() {
+            let first = sub.nodes.first().unwrap().point;
+            let last = sub.nodes.last().unwrap().point;
+            prop_assert!((first.x - x0).abs() < 1e-6);
+            prop_assert!((first.y - y0).abs() < 1e-6);
+            prop_assert!((last.x - x2).abs() < 1e-6);
+            prop_assert!((last.y - y2).abs() < 1e-6);
+        }
+    }
+}
+
+#[test]
+fn test_curve_fit_sine_wave() {
+    let mut raw_pts = Vec::new();
+    for i in 0..40 {
+        let x = (i as f64) * 5.0;
+        let y = (x * 0.05).sin() * 30.0;
+        raw_pts.push(Point2::new(x, y));
+    }
+
+    let tolerance = 2.0;
+    let subpath = core_geom::fit_curve(&raw_pts, tolerance);
+    assert!(!subpath.is_empty());
+    assert!(subpath.nodes.len() >= 2);
+
+    let cubics = subpath.to_cubics();
+    assert!(!cubics.is_empty());
+
+    // Check that endpoints match exactly
+    assert_eq!(subpath.nodes[0].point, raw_pts[0]);
+    assert_eq!(
+        subpath.nodes.last().unwrap().point,
+        *raw_pts.last().unwrap()
+    );
+}
+
+#[test]
+fn test_subpath_split_segment() {
+    let mut sub = core_geom::Subpath::new(false);
+    sub.push_node(BezierNode::new(Point2::new(0.0, 0.0), NodeType::Cusp));
+    sub.push_node(BezierNode::new(Point2::new(100.0, 100.0), NodeType::Cusp));
+
+    let inserted = sub.split_segment(0, 0.5);
+    assert_eq!(inserted, Some(1));
+    assert_eq!(sub.nodes.len(), 3);
+
+    let mid = sub.nodes[1].point;
+    assert!((mid.x - 50.0).abs() < 1e-6);
+    assert!((mid.y - 50.0).abs() < 1e-6);
+}
+
+#[test]
+fn test_polygon_and_star_and_spiral() {
+    let center = Point2::new(50.0, 50.0);
+
+    // Pentagon
+    let poly = Polycurve::polygon(center, 40.0, 5);
+    assert_eq!(poly.subpaths.len(), 1);
+    assert_eq!(poly.subpaths[0].nodes.len(), 5);
+    assert!(poly.subpaths[0].closed);
+    let b_poly = poly.bounds().expect("Bounds exist");
+    assert!(b_poly.min_x >= 10.0 && b_poly.max_x <= 90.0);
+
+    // 5-Point Star
+    let star = Polycurve::star(center, 40.0, 20.0, 5);
+    assert_eq!(star.subpaths.len(), 1);
+    assert_eq!(star.subpaths[0].nodes.len(), 10);
+    assert!(star.subpaths[0].closed);
+
+    // Spiral
+    let spiral = Polycurve::spiral(center, 3.0, 60.0);
+    assert_eq!(spiral.subpaths.len(), 1);
+    assert!(!spiral.subpaths[0].closed);
+    assert!(spiral.length() > 60.0);
 }

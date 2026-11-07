@@ -112,6 +112,65 @@ impl Subpath {
         }
         Some(r)
     }
+
+    /// Split segment at index `seg_idx` at parameter `t` (0.0..1.0).
+    /// Inserts a new node and updates handles. Returns the index of the newly inserted node.
+    pub fn split_segment(&mut self, seg_idx: usize, t: f64) -> Option<usize> {
+        let n = self.nodes.len();
+        if n < 2 {
+            return None;
+        }
+        let max_seg = if self.closed { n } else { n - 1 };
+        if seg_idx >= max_seg {
+            return None;
+        }
+
+        let next_idx = (seg_idx + 1) % n;
+        let p0 = self.nodes[seg_idx].point;
+        let p3 = self.nodes[next_idx].point;
+        let p1 = self.nodes[seg_idx]
+            .handle_out
+            .unwrap_or_else(|| p0.lerp(p3, 1.0 / 3.0));
+        let p2 = self.nodes[next_idx]
+            .handle_in
+            .unwrap_or_else(|| p0.lerp(p3, 2.0 / 3.0));
+
+        let cubic = CubicBezier::new(p0, p1, p2, p3);
+        let (left, right) = cubic.split(t.clamp(1e-4, 1.0 - 1e-4));
+
+        self.nodes[seg_idx].handle_out = Some(left.p1);
+
+        let new_node =
+            BezierNode::with_handles(left.p3, Some(left.p2), Some(right.p1), NodeType::Smooth);
+
+        let insert_idx = seg_idx + 1;
+        self.nodes.insert(insert_idx, new_node);
+
+        let updated_next = (insert_idx + 1) % self.nodes.len();
+        self.nodes[updated_next].handle_in = Some(right.p2);
+
+        Some(insert_idx)
+    }
+
+    /// Remove the node at `node_idx`.
+    pub fn remove_node(&mut self, node_idx: usize) -> bool {
+        if node_idx < self.nodes.len() {
+            self.nodes.remove(node_idx);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Update node type and re-enforce handle constraints.
+    pub fn set_node_type(&mut self, node_idx: usize, node_type: NodeType) -> bool {
+        if let Some(node) = self.nodes.get_mut(node_idx) {
+            node.set_node_type(node_type);
+            true
+        } else {
+            false
+        }
+    }
 }
 
 /// A 2D vector path composed of one or more subpaths.
@@ -285,6 +344,95 @@ impl Polycurve {
             Some(Point2::new(center.x - rx, center.y - ky)),
             NodeType::Symmetrical,
         ));
+
+        Self::from_subpath(sub)
+    }
+
+    /// Regular polygon with `sides` (3..=50) centered at `center`.
+    pub fn polygon(center: Point2, radius: f64, sides: u32) -> Self {
+        let n = sides.clamp(3, 50);
+        let mut sub = Subpath::new(true);
+        for i in 0..n {
+            let angle =
+                (i as f64) * std::f64::consts::TAU / (n as f64) - std::f64::consts::FRAC_PI_2;
+            let pt = Point2::new(
+                center.x + radius * angle.cos(),
+                center.y + radius * angle.sin(),
+            );
+            sub.push_node(BezierNode::new(pt, NodeType::Cusp));
+        }
+        Self::from_subpath(sub)
+    }
+
+    /// Star with `points` (3..=50), outer radius, and inner radius centered at `center`.
+    pub fn star(center: Point2, outer_radius: f64, inner_radius: f64, points: u32) -> Self {
+        let n = points.clamp(3, 50) * 2;
+        let mut sub = Subpath::new(true);
+        for i in 0..n {
+            let r = if i % 2 == 0 {
+                outer_radius
+            } else {
+                inner_radius
+            };
+            let angle =
+                (i as f64) * std::f64::consts::TAU / (n as f64) - std::f64::consts::FRAC_PI_2;
+            let pt = Point2::new(center.x + r * angle.cos(), center.y + r * angle.sin());
+            sub.push_node(BezierNode::new(pt, NodeType::Cusp));
+        }
+        Self::from_subpath(sub)
+    }
+
+    /// Archimedean spiral with `turns` (0.5..=20.0) expanding to `expansion` radius.
+    pub fn spiral(center: Point2, turns: f64, expansion: f64) -> Self {
+        let turns = turns.clamp(0.5, 20.0);
+        let expansion = expansion.max(0.1);
+        let total_angle = turns * std::f64::consts::TAU;
+        let b = expansion / total_angle; // r(theta) = b * theta
+
+        let segments = ((turns * 4.0).ceil() as usize).max(4);
+        let delta_theta = total_angle / segments as f64;
+
+        let mut sub = Subpath::new(false);
+        let mut prev_pt = center;
+        let mut prev_tangent = Point2::new(b, 0.0);
+
+        for seg in 0..segments {
+            let theta1 = (seg + 1) as f64 * delta_theta;
+
+            let r1 = b * theta1;
+            let pt1 = Point2::new(center.x + r1 * theta1.cos(), center.y + r1 * theta1.sin());
+
+            let tan1 = Point2::new(
+                b * theta1.cos() - r1 * theta1.sin(),
+                b * theta1.sin() + r1 * theta1.cos(),
+            );
+
+            let dt_third = delta_theta / 3.0;
+            let cp1 = prev_pt + prev_tangent * dt_third;
+            let cp2 = pt1 - tan1 * dt_third;
+
+            if seg == 0 {
+                sub.push_node(BezierNode::with_handles(
+                    prev_pt,
+                    None,
+                    Some(cp1),
+                    NodeType::Smooth,
+                ));
+            } else {
+                let last_idx = sub.nodes.len() - 1;
+                sub.nodes[last_idx].handle_out = Some(cp1);
+            }
+
+            sub.push_node(BezierNode::with_handles(
+                pt1,
+                Some(cp2),
+                None,
+                NodeType::Smooth,
+            ));
+
+            prev_pt = pt1;
+            prev_tangent = tan1;
+        }
 
         Self::from_subpath(sub)
     }

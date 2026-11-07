@@ -119,3 +119,76 @@ fn test_shape_hit_test() {
     assert!(ellipse_shape.hit_test(Point2::new(120.0, 100.0), 1.0)); // Right apex
     assert!(!ellipse_shape.hit_test(Point2::new(150.0, 100.0), 1.0)); // Far away
 }
+
+#[test]
+fn test_style_and_modify_kind_commands() {
+    let mut doc = Document::new("Style Test");
+    let mut undo_stack = UndoStack::new();
+
+    let id = doc.allocate_id();
+    let shape = Shape::rectangle(id, Rect::new(0.0, 0.0, 100.0, 100.0), 0.0);
+    let old_style = shape.style.clone();
+    let mut new_style = old_style.clone();
+    new_style.fill = Some(Color::rgb(255, 0, 0));
+
+    doc.add_shape_to_active_layer(shape);
+
+    // 1. Change style
+    let cmd = Box::new(core_doc::SetStyleCommand::new(
+        id,
+        old_style.clone(),
+        new_style.clone(),
+    ));
+    undo_stack.apply(cmd, &mut doc);
+    assert_eq!(
+        doc.find_shape(id).unwrap().style.fill,
+        Some(Color::rgb(255, 0, 0))
+    );
+
+    // Undo style
+    assert!(undo_stack.undo(&mut doc));
+    assert_eq!(doc.find_shape(id).unwrap().style.fill, None);
+
+    // Redo style
+    assert!(undo_stack.redo(&mut doc));
+    assert_eq!(
+        doc.find_shape(id).unwrap().style.fill,
+        Some(Color::rgb(255, 0, 0))
+    );
+
+    // 2. Convert to path & modify kind
+    let old_kind = doc.find_shape(id).unwrap().kind.clone();
+    let poly = doc.find_shape(id).unwrap().to_polycurve();
+    let new_kind = core_doc::ShapeKind::Path(poly);
+
+    let kind_cmd = Box::new(core_doc::ModifyShapeKindCommand::new(
+        id,
+        "Convert to Curves",
+        old_kind.clone(),
+        new_kind.clone(),
+    ));
+    undo_stack.apply(kind_cmd, &mut doc);
+    assert!(matches!(
+        doc.find_shape(id).unwrap().kind,
+        core_doc::ShapeKind::Path(_)
+    ));
+
+    // Undo convert to curves
+    assert!(undo_stack.undo(&mut doc));
+    assert!(matches!(
+        doc.find_shape(id).unwrap().kind,
+        core_doc::ShapeKind::Rect { .. }
+    ));
+}
+
+#[test]
+fn test_parametric_shapes() {
+    let poly = Shape::polygon(ShapeId(10), Point2::new(50.0, 50.0), 30.0, 6);
+    assert_eq!(poly.to_polycurve().subpaths[0].nodes.len(), 6);
+
+    let star = Shape::star(ShapeId(11), Point2::new(50.0, 50.0), 40.0, 20.0, 5);
+    assert_eq!(star.to_polycurve().subpaths[0].nodes.len(), 10);
+
+    let spiral = Shape::spiral(ShapeId(12), Point2::new(50.0, 50.0), 2.0, 40.0);
+    assert!(spiral.to_polycurve().length() > 30.0);
+}

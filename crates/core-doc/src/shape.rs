@@ -114,6 +114,58 @@ impl Shape {
         Self::new(id, "Path", ShapeKind::Path(polycurve))
     }
 
+    pub fn polygon(id: ShapeId, center: Point2, radius: f64, sides: u32) -> Self {
+        Self::new(
+            id,
+            "Polygon",
+            ShapeKind::Polygon {
+                center,
+                radius,
+                sides,
+            },
+        )
+    }
+
+    pub fn star(
+        id: ShapeId,
+        center: Point2,
+        outer_radius: f64,
+        inner_radius: f64,
+        points: u32,
+    ) -> Self {
+        Self::new(
+            id,
+            "Star",
+            ShapeKind::Star {
+                center,
+                outer_radius,
+                inner_radius,
+                points,
+            },
+        )
+    }
+
+    pub fn spiral(id: ShapeId, center: Point2, turns: f64, expansion: f64) -> Self {
+        Self::new(
+            id,
+            "Spiral",
+            ShapeKind::Spiral {
+                center,
+                turns,
+                expansion,
+            },
+        )
+    }
+
+    /// Converts parametric primitive shape kinds (Rect, Ellipse, Polygon, etc.)
+    /// into an editable cubic Bézier `Path`.
+    pub fn convert_to_path(&mut self) {
+        if !matches!(self.kind, ShapeKind::Path(_)) {
+            let poly = self.to_polycurve();
+            self.kind = ShapeKind::Path(poly);
+        }
+    }
+
     /// Normalise the shape geometry to a cubic Bézier `Polycurve`.
     pub fn to_polycurve(&self) -> Polycurve {
         match &self.kind {
@@ -129,44 +181,19 @@ impl Shape {
                 center,
                 radius,
                 sides,
-            } => {
-                let mut sub = core_geom::Subpath::new(true);
-                let n = (*sides).max(3);
-                for i in 0..n {
-                    let angle = (i as f64) * std::f64::consts::TAU / (n as f64)
-                        - std::f64::consts::FRAC_PI_2;
-                    let pt = Point2::new(
-                        center.x + radius * angle.cos(),
-                        center.y + radius * angle.sin(),
-                    );
-                    sub.push_node(core_geom::BezierNode::new(pt, core_geom::NodeType::Cusp));
-                }
-                Polycurve::from_subpath(sub)
-            }
+            } => Polycurve::polygon(*center, *radius, *sides),
             ShapeKind::Star {
                 center,
                 outer_radius,
                 inner_radius,
                 points,
-            } => {
-                let mut sub = core_geom::Subpath::new(true);
-                let n = (*points).max(3) * 2;
-                for i in 0..n {
-                    let r = if i % 2 == 0 {
-                        *outer_radius
-                    } else {
-                        *inner_radius
-                    };
-                    let angle = (i as f64) * std::f64::consts::TAU / (n as f64)
-                        - std::f64::consts::FRAC_PI_2;
-                    let pt = Point2::new(center.x + r * angle.cos(), center.y + r * angle.sin());
-                    sub.push_node(core_geom::BezierNode::new(pt, core_geom::NodeType::Cusp));
-                }
-                Polycurve::from_subpath(sub)
-            }
-            ShapeKind::Spiral { .. } | ShapeKind::Text { .. } | ShapeKind::Group { .. } => {
-                Polycurve::new()
-            }
+            } => Polycurve::star(*center, *outer_radius, *inner_radius, *points),
+            ShapeKind::Spiral {
+                center,
+                turns,
+                expansion,
+            } => Polycurve::spiral(*center, *turns, *expansion),
+            ShapeKind::Text { .. } | ShapeKind::Group { .. } => Polycurve::new(),
         }
     }
 

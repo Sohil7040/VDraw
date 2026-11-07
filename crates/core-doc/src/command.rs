@@ -1,5 +1,6 @@
 use crate::document::Document;
-use crate::shape::{Shape, ShapeId};
+use crate::shape::{Shape, ShapeId, ShapeKind};
+use crate::style::Style;
 use core_geom::Affine2;
 
 /// A command that can be applied to and reverted from a `Document`.
@@ -130,6 +131,85 @@ impl Command for TransformShapesCommand {
             if let Some(shape) = doc.find_shape_mut(id) {
                 shape.transform = old_tr;
             }
+        }
+    }
+}
+
+/// Command to change a shape's style (fill, stroke, line cap/join, etc.)
+#[derive(Debug)]
+pub struct SetStyleCommand {
+    shape_id: ShapeId,
+    old_style: Style,
+    new_style: Style,
+}
+
+impl SetStyleCommand {
+    pub fn new(shape_id: ShapeId, old_style: Style, new_style: Style) -> Self {
+        Self {
+            shape_id,
+            old_style,
+            new_style,
+        }
+    }
+}
+
+impl Command for SetStyleCommand {
+    fn name(&self) -> &str {
+        "Change Style"
+    }
+
+    fn apply(&mut self, doc: &mut Document) {
+        if let Some(shape) = doc.find_shape_mut(self.shape_id) {
+            shape.style = self.new_style.clone();
+        }
+    }
+
+    fn undo(&mut self, doc: &mut Document) {
+        if let Some(shape) = doc.find_shape_mut(self.shape_id) {
+            shape.style = self.old_style.clone();
+        }
+    }
+}
+
+/// Command to modify a shape's underlying geometry / kind (e.g. node edits, curve splits).
+#[derive(Debug)]
+pub struct ModifyShapeKindCommand {
+    shape_id: ShapeId,
+    name: String,
+    old_kind: ShapeKind,
+    new_kind: ShapeKind,
+}
+
+impl ModifyShapeKindCommand {
+    pub fn new(
+        shape_id: ShapeId,
+        name: impl Into<String>,
+        old_kind: ShapeKind,
+        new_kind: ShapeKind,
+    ) -> Self {
+        Self {
+            shape_id,
+            name: name.into(),
+            old_kind,
+            new_kind,
+        }
+    }
+}
+
+impl Command for ModifyShapeKindCommand {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn apply(&mut self, doc: &mut Document) {
+        if let Some(shape) = doc.find_shape_mut(self.shape_id) {
+            shape.kind = self.new_kind.clone();
+        }
+    }
+
+    fn undo(&mut self, doc: &mut Document) {
+        if let Some(shape) = doc.find_shape_mut(self.shape_id) {
+            shape.kind = self.old_kind.clone();
         }
     }
 }

@@ -63,6 +63,14 @@ static COMMANDS: &[Command] = &[
         shortcut: "V",
     },
     Command {
+        label: "Shape / Node Tool",
+        shortcut: "F10",
+    },
+    Command {
+        label: "Freehand Tool",
+        shortcut: "F5",
+    },
+    Command {
         label: "Pen Tool",
         shortcut: "B",
     },
@@ -73,6 +81,18 @@ static COMMANDS: &[Command] = &[
     Command {
         label: "Ellipse Tool",
         shortcut: "F7",
+    },
+    Command {
+        label: "Polygon Tool",
+        shortcut: "Y",
+    },
+    Command {
+        label: "Star Tool",
+        shortcut: "S",
+    },
+    Command {
+        label: "Spiral Tool",
+        shortcut: "A",
     },
     Command {
         label: "Text Tool",
