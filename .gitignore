@@ -2,3 +2,5 @@
 **/*.rs.bk
 *.png.tmp
 .DS_Store
+.github/
+
