@@ -1,7 +1,8 @@
-//! Canvas widget: pan/zoom, rulers, grid, page boundary, shape rendering, and tool interaction.
+//! Canvas widget: pan/zoom, rulers, grid, guidelines, snapping overlays, and tool interaction.
 
 use core_doc::{Color, Document, ShapeKind, UndoStack};
 use core_geom::Point2;
+use core_snap::{Guideline, GuidelineOrientation, SnapResult, SnapSolver, SnapTargetKind};
 use core_tools::{ModifiersState, PointerEvent, ToolManager};
 use egui::{Color32, Painter, Pos2, Rect, Stroke, Vec2};
 
@@ -14,6 +15,15 @@ pub const PX_PER_MM: f32 = 96.0 / 25.4;
 /// A4 dimensions in mm.
 const A4_W_MM: f32 = 210.0;
 const A4_H_MM: f32 = 297.0;
+
+// ─── Guideline drag state ───────────────────────────────────────────────────
+
+/// Interactive guideline dragging out from rulers.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum GuidelineDrag {
+    Horizontal(f64),
+    Vertical(f64),
+}
 
 // ─── Canvas state ────────────────────────────────────────────────────────────
 
@@ -32,6 +42,10 @@ pub struct CanvasState {
     pub show_grid: bool,
     /// Whether to show rulers.
     pub show_rulers: bool,
+    /// Active guideline drag from ruler.
+    pub active_guideline_drag: Option<GuidelineDrag>,
+    /// Cached latest snap result for visual rendering.
+    pub last_snap: Option<SnapResult>,
 }
 
 impl Default for CanvasState {
@@ -43,6 +57,8 @@ impl Default for CanvasState {
             cursor_mm: None,
             show_grid: true,
             show_rulers: true,
+            active_guideline_drag: None,
+            last_snap: None,
         }
     }
 }
@@ -69,11 +85,11 @@ impl CanvasState {
         )
     }
 
-    /// Zoom centred on `anchor_screen` by `factor`.
+    /// Zoom in or out centered at `anchor_screen`.
     pub fn zoom_at(&mut self, anchor_screen: Pos2, canvas_origin: Pos2, factor: f32) {
         let old_zoom = self.zoom;
-        let new_zoom = (self.zoom * factor).clamp(Self::MIN_ZOOM, Self::MAX_ZOOM);
-        if (new_zoom - old_zoom).abs() < f32::EPSILON {
+        let new_zoom = (old_zoom * factor).clamp(Self::MIN_ZOOM, Self::MAX_ZOOM);
+        if (new_zoom - old_zoom).abs() < 1e-6 {
             return;
         }
 
@@ -102,13 +118,14 @@ impl CanvasState {
 
 // ─── Canvas widget ────────────────────────────────────────────────────────────
 
-/// Show the canvas, updating `state`, dispatching to `tools`, and rendering `doc`.
+/// Show the canvas, updating `state`, dispatching to `tools`, and rendering `doc` and snapping overlays.
 pub fn show_canvas(
     ui: &mut egui::Ui,
     state: &mut CanvasState,
     doc: &mut Document,
     undo: &mut UndoStack,
     tools: &mut ToolManager,
+    snap_solver: &mut SnapSolver,
 ) {
     let avail = ui.available_rect_before_wrap();
     let (resp, painter) = ui.allocate_painter(avail.size(), egui::Sense::click_and_drag());
@@ -128,8 +145,18 @@ pub fn show_canvas(
     // 1. Canvas background
     painter.rect_filled(avail, 0.0, theme::CANVAS_BG);
 
-    // 2. Handle input and dispatch to tools
-    handle_input(ui, &resp, state, doc, undo, tools, viewport);
+    // 2. Handle input and dispatch to tools with snapping
+    handle_input(
+        ui,
+        &resp,
+        state,
+        doc,
+        undo,
+        tools,
+        snap_solver,
+        avail,
+        viewport,
+    );
 
     // 3. Grid
     if state.show_grid {
@@ -142,17 +169,23 @@ pub fn show_canvas(
     // 5. Document shapes
     draw_shapes(&painter, state, doc, viewport);
 
-    // 6. Active tool overlay (selection box, handles, drawing preview)
+    // 6. Guidelines (user-placed and dragging)
+    draw_guidelines(&painter, state, doc, viewport);
+
+    // 7. Active tool overlay (selection box, handles, drawing preview)
     let origin = viewport.min;
     let to_screen = |p: Point2| state.world_to_screen(p, origin);
     tools.draw_overlay(&painter, doc, &to_screen);
 
-    // 7. Rulers
+    // 8. Snapping indicators, dynamic guides, and alignment lines
+    draw_snap_overlays(&painter, state, viewport);
+
+    // 9. Rulers
     if state.show_rulers {
         draw_rulers(&painter, state, avail, viewport);
     }
 
-    // 8. Update cursor icon
+    // 10. Update cursor icon
     if state.panning {
         ui.ctx().set_cursor_icon(if resp.dragged() {
             egui::CursorIcon::Grabbing
@@ -166,6 +199,7 @@ pub fn show_canvas(
 
 // ─── Input handling ──────────────────────────────────────────────────────────
 
+#[allow(clippy::too_many_arguments)]
 fn handle_input(
     ui: &mut egui::Ui,
     resp: &egui::Response,
@@ -173,6 +207,8 @@ fn handle_input(
     doc: &mut Document,
     undo: &mut UndoStack,
     tools: &mut ToolManager,
+    snap_solver: &mut SnapSolver,
+    full_rect: Rect,
     viewport: Rect,
 ) {
     let canvas_origin = viewport.min;
@@ -204,23 +240,82 @@ fn handle_input(
         return;
     }
 
-    // Build PointerEvent
+    // ─── Ruler Guideline Dragging ─────────────────────────────────────────────
+    let rs = theme::RULER_SIZE;
+    let h_ruler = Rect::from_min_size(
+        Pos2::new(viewport.min.x, full_rect.min.y),
+        Vec2::new(viewport.width(), rs),
+    );
+    let v_ruler = Rect::from_min_size(
+        Pos2::new(full_rect.min.x, viewport.min.y),
+        Vec2::new(rs, viewport.height()),
+    );
+
+    let current_pos = resp.hover_pos().unwrap_or(viewport.center());
+    let world_pos = state.screen_to_world(current_pos, canvas_origin);
+
+    if state.show_rulers && resp.drag_started_by(egui::PointerButton::Primary) {
+        if let Some(pos) = resp.hover_pos() {
+            if h_ruler.contains(pos) {
+                state.active_guideline_drag = Some(GuidelineDrag::Horizontal(world_pos.y));
+            } else if v_ruler.contains(pos) {
+                state.active_guideline_drag = Some(GuidelineDrag::Vertical(world_pos.x));
+            }
+        }
+    }
+
+    if let Some(drag) = state.active_guideline_drag {
+        if resp.dragged_by(egui::PointerButton::Primary) {
+            match drag {
+                GuidelineDrag::Horizontal(_) => {
+                    state.active_guideline_drag = Some(GuidelineDrag::Horizontal(world_pos.y));
+                }
+                GuidelineDrag::Vertical(_) => {
+                    state.active_guideline_drag = Some(GuidelineDrag::Vertical(world_pos.x));
+                }
+            }
+        } else if resp.drag_stopped_by(egui::PointerButton::Primary) || !resp.dragged() {
+            match drag {
+                GuidelineDrag::Horizontal(y) => {
+                    if viewport.contains(current_pos) {
+                        let id = doc.add_guideline(GuidelineOrientation::Horizontal(y));
+                        snap_solver.add_guideline(Guideline::horizontal(id.0, y));
+                    }
+                }
+                GuidelineDrag::Vertical(x) => {
+                    if viewport.contains(current_pos) {
+                        let id = doc.add_guideline(GuidelineOrientation::Vertical(x));
+                        snap_solver.add_guideline(Guideline::vertical(id.0, x));
+                    }
+                }
+            }
+            state.active_guideline_drag = None;
+        }
+        return;
+    }
+
+    // ─── Snapping Evaluation ─────────────────────────────────────────────────
     let modifiers = ui.input(|i| ModifiersState {
         shift: i.modifiers.shift,
         ctrl: i.modifiers.ctrl,
         alt: i.modifiers.alt,
     });
 
-    let current_pos = resp.hover_pos().unwrap_or(viewport.center());
-    let world_pos = state.screen_to_world(current_pos, canvas_origin);
-    let event = PointerEvent {
-        world_pos,
-        screen_pos: current_pos,
-        modifiers,
-        primary: resp.dragged_by(egui::PointerButton::Primary)
-            || resp.clicked_by(egui::PointerButton::Primary),
+    let primary = resp.dragged_by(egui::PointerButton::Primary)
+        || resp.clicked_by(egui::PointerButton::Primary);
+
+    let snap_res = snap_solver.snap_point(world_pos, (state.zoom * PX_PER_MM) as f64, None, &[]);
+
+    let event = PointerEvent::new(world_pos, current_pos, modifiers, primary)
+        .with_snapped_pos(snap_res.point);
+
+    state.last_snap = if snap_res.snapped {
+        Some(snap_res)
+    } else {
+        None
     };
 
+    // Dispatch to tools
     if resp.drag_started_by(egui::PointerButton::Primary)
         || resp.clicked_by(egui::PointerButton::Primary)
     {
@@ -263,7 +358,6 @@ fn draw_shapes(painter: &Painter, state: &CanvasState, doc: &Document, viewport:
             let fill_col = shape.style.fill.map(to_color32);
             let stroke_prop = &shape.style.stroke;
 
-            // Direct rendering for standard primitives for optimal speed & sharpness
             match &shape.kind {
                 ShapeKind::Line { start, end } => {
                     let p0 = shape.transform.transform_point(*start);
@@ -281,7 +375,6 @@ fn draw_shapes(painter: &Painter, state: &CanvasState, doc: &Document, viewport:
                     }
                 }
                 _ => {
-                    // Polycurve rendering
                     let poly = shape.to_polycurve();
                     let tol = (0.05 / state.zoom.max(0.1) as f64).clamp(0.01, 0.5);
 
@@ -340,6 +433,283 @@ fn draw_shapes(painter: &Painter, state: &CanvasState, doc: &Document, viewport:
             }
         }
     }
+}
+
+// ─── Guidelines drawing ─────────────────────────────────────────────────────
+
+fn draw_guidelines(painter: &Painter, state: &CanvasState, doc: &Document, viewport: Rect) {
+    let origin = viewport.min;
+    let guide_stroke = Stroke::new(1.0, theme::GUIDE_LINE);
+
+    for g in &doc.guidelines {
+        match g.orientation {
+            GuidelineOrientation::Horizontal(y) => {
+                let sy = state.world_to_screen(Point2::new(0.0, y), origin).y;
+                if sy >= viewport.min.y && sy <= viewport.max.y {
+                    painter.line_segment(
+                        [Pos2::new(viewport.min.x, sy), Pos2::new(viewport.max.x, sy)],
+                        guide_stroke,
+                    );
+                    painter.text(
+                        Pos2::new(viewport.min.x + 4.0, sy - 2.0),
+                        egui::Align2::LEFT_BOTTOM,
+                        format!("{:.1} mm", y),
+                        egui::FontId::monospace(9.0),
+                        theme::GUIDE_LINE,
+                    );
+                }
+            }
+            GuidelineOrientation::Vertical(x) => {
+                let sx = state.world_to_screen(Point2::new(x, 0.0), origin).x;
+                if sx >= viewport.min.x && sx <= viewport.max.x {
+                    painter.line_segment(
+                        [Pos2::new(sx, viewport.min.y), Pos2::new(sx, viewport.max.y)],
+                        guide_stroke,
+                    );
+                    painter.text(
+                        Pos2::new(sx + 2.0, viewport.min.y + 4.0),
+                        egui::Align2::LEFT_TOP,
+                        format!("{:.1} mm", x),
+                        egui::FontId::monospace(9.0),
+                        theme::GUIDE_LINE,
+                    );
+                }
+            }
+            GuidelineOrientation::Angled {
+                origin: o,
+                angle_rad,
+            } => {
+                let s_origin = state.world_to_screen(o, origin);
+                let dir = Vec2::new(angle_rad.cos() as f32, angle_rad.sin() as f32) * 5000.0;
+                painter.line_segment([s_origin - dir, s_origin + dir], guide_stroke);
+            }
+        }
+    }
+
+    // Active dragging guideline preview
+    if let Some(drag) = state.active_guideline_drag {
+        let active_stroke = Stroke::new(1.5, theme::ACCENT_HOVER);
+        match drag {
+            GuidelineDrag::Horizontal(y) => {
+                let sy = state.world_to_screen(Point2::new(0.0, y), origin).y;
+                painter.line_segment(
+                    [Pos2::new(viewport.min.x, sy), Pos2::new(viewport.max.x, sy)],
+                    active_stroke,
+                );
+                painter.text(
+                    Pos2::new(viewport.min.x + 20.0, sy - 4.0),
+                    egui::Align2::LEFT_BOTTOM,
+                    format!("Guideline Y: {:.1} mm", y),
+                    egui::FontId::monospace(10.0),
+                    theme::ACCENT_HOVER,
+                );
+            }
+            GuidelineDrag::Vertical(x) => {
+                let sx = state.world_to_screen(Point2::new(x, 0.0), origin).x;
+                painter.line_segment(
+                    [Pos2::new(sx, viewport.min.y), Pos2::new(sx, viewport.max.y)],
+                    active_stroke,
+                );
+                painter.text(
+                    Pos2::new(sx + 4.0, viewport.min.y + 20.0),
+                    egui::Align2::LEFT_TOP,
+                    format!("Guideline X: {:.1} mm", x),
+                    egui::FontId::monospace(10.0),
+                    theme::ACCENT_HOVER,
+                );
+            }
+        }
+    }
+}
+
+// ─── Snapping overlays & HUD badges ──────────────────────────────────────────
+
+fn draw_snap_overlays(painter: &Painter, state: &CanvasState, viewport: Rect) {
+    let Some(snap_res) = &state.last_snap else {
+        return;
+    };
+    if !snap_res.snapped {
+        return;
+    }
+
+    let origin = viewport.min;
+    let screen_pt = state.world_to_screen(snap_res.point, origin);
+    if !viewport.contains(screen_pt) {
+        return;
+    }
+
+    let Some(target) = &snap_res.target else {
+        return;
+    };
+
+    let marker_col = theme::SNAP_MARKER;
+    let marker_stroke = Stroke::new(1.5, marker_col);
+
+    // 1. Draw Geometric Snap Marker Glyph
+    match target.kind {
+        SnapTargetKind::Node => {
+            // Square (■)
+            let half = 4.0;
+            let r = Rect::from_center_size(screen_pt, Vec2::splat(half * 2.0));
+            painter.rect_filled(r, 1.0, theme::BG_PANEL);
+            painter.rect_stroke(r, 1.0, marker_stroke, egui::StrokeKind::Outside);
+        }
+        SnapTargetKind::Midpoint => {
+            // Diamond (◆)
+            let half = 5.0;
+            let pts = vec![
+                screen_pt + Vec2::new(0.0, -half),
+                screen_pt + Vec2::new(half, 0.0),
+                screen_pt + Vec2::new(0.0, half),
+                screen_pt + Vec2::new(-half, 0.0),
+            ];
+            painter.add(egui::Shape::convex_polygon(
+                pts,
+                theme::BG_PANEL,
+                marker_stroke,
+            ));
+        }
+        SnapTargetKind::Center => {
+            // Circle with crosshair (⊕)
+            painter.circle_stroke(screen_pt, 4.5, marker_stroke);
+            painter.line_segment(
+                [
+                    screen_pt - Vec2::new(6.0, 0.0),
+                    screen_pt + Vec2::new(6.0, 0.0),
+                ],
+                marker_stroke,
+            );
+            painter.line_segment(
+                [
+                    screen_pt - Vec2::new(0.0, 6.0),
+                    screen_pt + Vec2::new(0.0, 6.0),
+                ],
+                marker_stroke,
+            );
+        }
+        SnapTargetKind::Quadrant => {
+            // Small diamond (◇)
+            let half = 4.0;
+            let pts = [
+                screen_pt + Vec2::new(0.0, -half),
+                screen_pt + Vec2::new(half, 0.0),
+                screen_pt + Vec2::new(0.0, half),
+                screen_pt + Vec2::new(-half, 0.0),
+            ];
+            painter.line_segment([pts[0], pts[1]], marker_stroke);
+            painter.line_segment([pts[1], pts[2]], marker_stroke);
+            painter.line_segment([pts[2], pts[3]], marker_stroke);
+            painter.line_segment([pts[3], pts[0]], marker_stroke);
+        }
+
+        SnapTargetKind::Intersection => {
+            // Diagonal 'X' crosshair (✕)
+            let d = 4.5;
+            painter.line_segment(
+                [screen_pt - Vec2::splat(d), screen_pt + Vec2::splat(d)],
+                marker_stroke,
+            );
+            painter.line_segment(
+                [screen_pt + Vec2::new(-d, d), screen_pt + Vec2::new(d, -d)],
+                marker_stroke,
+            );
+        }
+        SnapTargetKind::Edge => {
+            // Parallel bars (∥)
+            let h = 4.5;
+            painter.line_segment(
+                [
+                    screen_pt + Vec2::new(-2.5, -h),
+                    screen_pt + Vec2::new(-2.5, h),
+                ],
+                marker_stroke,
+            );
+            painter.line_segment(
+                [
+                    screen_pt + Vec2::new(2.5, -h),
+                    screen_pt + Vec2::new(2.5, h),
+                ],
+                marker_stroke,
+            );
+        }
+        SnapTargetKind::Grid => {
+            // Small '+' cross
+            let d = 4.0;
+            painter.line_segment(
+                [screen_pt - Vec2::new(d, 0.0), screen_pt + Vec2::new(d, 0.0)],
+                marker_stroke,
+            );
+            painter.line_segment(
+                [screen_pt - Vec2::new(0.0, d), screen_pt + Vec2::new(0.0, d)],
+                marker_stroke,
+            );
+        }
+        _ => {
+            painter.circle_filled(screen_pt, 3.5, marker_col);
+        }
+    }
+
+    // 2. Draw Dynamic Polar Ray (if active)
+    if let Some(ray) = &snap_res.dynamic_ray {
+        let ray_start = state.world_to_screen(ray.origin, origin);
+        let ray_dir = (screen_pt - ray_start).normalized();
+        let ray_end = ray_start + ray_dir * 3000.0;
+        painter.line_segment([ray_start, ray_end], Stroke::new(1.0, theme::DYNAMIC_GUIDE));
+
+        if let Some(tick_pt) = ray.tick_point {
+            let s_tick = state.world_to_screen(tick_pt, origin);
+            let perp = Vec2::new(-ray_dir.y, ray_dir.x) * 4.0;
+            painter.line_segment(
+                [s_tick - perp, s_tick + perp],
+                Stroke::new(1.5, theme::DYNAMIC_GUIDE),
+            );
+        }
+    }
+
+    // 3. Draw Smart Alignment Lines (if active)
+    for line in &snap_res.alignment_lines {
+        let s_start = state.world_to_screen(line.start, origin);
+        let s_end = state.world_to_screen(line.end, origin);
+        painter.line_segment([s_start, s_end], Stroke::new(1.0, theme::ALIGN_GUIDE));
+
+        let mid = (s_start + s_end.to_vec2()) * 0.5;
+        let badge_rect = Rect::from_center_size(mid, Vec2::new(90.0, 16.0));
+        painter.rect_filled(badge_rect, 3.0, Color32::from_black_alpha(200));
+        painter.rect_stroke(
+            badge_rect,
+            3.0,
+            Stroke::new(1.0, theme::ALIGN_GUIDE),
+            egui::StrokeKind::Outside,
+        );
+        painter.text(
+            mid,
+            egui::Align2::CENTER_CENTER,
+            &line.label,
+            egui::FontId::proportional(10.0),
+            Color32::WHITE,
+        );
+    }
+
+    // 4. Floating HUD Pill Badge near Cursor
+    let hud_pos = screen_pt + Vec2::new(12.0, -14.0);
+    let hud_text = &target.label;
+    let font = egui::FontId::proportional(11.0);
+    let galley = painter.layout_no_wrap(hud_text.clone(), font, theme::TEXT_PRIMARY);
+    let padding = Vec2::new(6.0, 3.0);
+    let pill_rect = Rect::from_min_size(hud_pos, galley.size() + padding * 2.0);
+
+    painter.rect_filled(
+        pill_rect,
+        4.0,
+        Color32::from_rgba_unmultiplied(0x1E, 0x21, 0x28, 0xEE),
+    );
+    painter.rect_stroke(
+        pill_rect,
+        4.0,
+        Stroke::new(1.0, marker_col),
+        egui::StrokeKind::Outside,
+    );
+    painter.galley(hud_pos + padding, galley, theme::TEXT_PRIMARY);
 }
 
 // ─── Grid drawing ────────────────────────────────────────────────────────────

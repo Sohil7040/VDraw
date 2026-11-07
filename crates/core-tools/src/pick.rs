@@ -77,7 +77,7 @@ impl Tool for PickTool {
             return false;
         }
 
-        let p = event.world_pos;
+        let p = event.pos();
         let bounds_opt = doc.selection_bounds();
 
         // 1. Check if user clicked a selection handle
@@ -168,10 +168,11 @@ impl Tool for PickTool {
     ) -> bool {
         self.update_hover(doc, event);
 
-        let p = event.world_pos;
+        let p = event.pos();
         match self.active_drag {
             Some(DragOperation::Move { start_pt }) => {
                 let delta = p - start_pt;
+
                 for (&id, &init_tr) in &self.initial_transforms {
                     if let Some(shape) = doc.find_shape_mut(id) {
                         shape.transform = Affine2::translate(delta) * init_tr;

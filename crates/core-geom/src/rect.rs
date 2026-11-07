@@ -134,6 +134,34 @@ impl Rect {
             max_y: self.max_y + delta.y,
         }
     }
+
+    /// Calculate the minimum Euclidean distance from a point to the rectangle.
+    /// Returns 0.0 if the point is inside the rectangle.
+    #[inline]
+    pub fn distance_to_point(&self, p: Point2) -> f64 {
+        let dx = (self.min_x - p.x).max(0.0).max(p.x - self.max_x);
+        let dy = (self.min_y - p.y).max(0.0).max(p.y - self.max_y);
+        (dx * dx + dy * dy).sqrt()
+    }
+
+    /// Returns the 9 canonical reference points of the bounding box:
+    /// [TopLeft, TopCenter, TopRight, MidLeft, Center, MidRight, BottomLeft, BottomCenter, BottomRight].
+    #[inline]
+    pub fn nine_points(&self) -> [Point2; 9] {
+        let mid_x = (self.min_x + self.max_x) * 0.5;
+        let mid_y = (self.min_y + self.max_y) * 0.5;
+        [
+            Point2::new(self.min_x, self.min_y), // TopLeft
+            Point2::new(mid_x, self.min_y),      // TopCenter
+            Point2::new(self.max_x, self.min_y), // TopRight
+            Point2::new(self.min_x, mid_y),      // MidLeft
+            Point2::new(mid_x, mid_y),           // Center
+            Point2::new(self.max_x, mid_y),      // MidRight
+            Point2::new(self.min_x, self.max_y), // BottomLeft
+            Point2::new(mid_x, self.max_y),      // BottomCenter
+            Point2::new(self.max_x, self.max_y), // BottomRight
+        ]
+    }
 }
 
 // ─── Kurbo interop ───────────────────────────────────────────────────────────

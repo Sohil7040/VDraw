@@ -78,6 +78,26 @@ pub fn render_ui_screenshot(output_path: &Path) -> Result<(), String> {
     let line_rect = Rect::from_xywh(0.0, 876.0, width as f32, 1.0).unwrap();
     pixmap.fill_rect(line_rect, &paint, Transform::identity(), None);
 
+    // Phase 3 Status bar toggles: [⊕ Snap: ON] [⊞ Grid: ON] [⊢ Guides: ON] [∠ Dynamic: 15°]
+    let snap_pill_colors = [
+        (Color::from_rgba8(32, 211, 181, 60), 860.0, 75.0), // ⊕ Snap
+        (Color::from_rgba8(32, 211, 181, 60), 945.0, 70.0), // ⊞ Grid
+        (Color::from_rgba8(32, 211, 181, 60), 1025.0, 80.0), // ⊢ Guides
+        (Color::from_rgba8(124, 92, 255, 60), 1115.0, 95.0), // ∠ Dynamic (15°)
+    ];
+    for (bg_col, pill_x, pill_w) in snap_pill_colors {
+        paint.set_color(bg_col);
+        let pill_r = Rect::from_xywh(pill_x, 879.0, pill_w, 18.0).unwrap();
+        pixmap.fill_rect(pill_r, &paint, Transform::identity(), None);
+        paint.set_color(border);
+        let p = PathBuilder::from_rect(pill_r);
+        let s1 = Stroke {
+            width: 1.0,
+            ..Default::default()
+        };
+        pixmap.stroke_path(&p, &paint, &s1, Transform::identity(), None);
+    }
+
     // 5. Left Toolbar (Width 48, Y = 68..876)
     paint.set_color(bg_panel);
     let tool_rect = Rect::from_xywh(0.0, 68.0, 48.0, 808.0).unwrap();
@@ -431,6 +451,188 @@ pub fn render_ui_screenshot(output_path: &Path) -> Result<(), String> {
 
         draw_anchor(&mut pixmap, p0.0, p0.1, false);
         draw_anchor(&mut pixmap, p3.0, p3.1, true); // Selected anchor point
+    }
+
+    // ── Phase 3 Snapping & Guide Overlays ──────────────────────────────────
+    let align_magenta = Color::from_rgba8(0xF0, 0x42, 0x9B, 220); // #F0429B
+    let snap_teal = Color::from_rgba8(0x20, 0xD3, 0xB5, 255); // #20D3B5
+    let dynamic_violet = Color::from_rgba8(0x9D, 0x72, 0xFF, 200); // #9D72FF
+
+    // A. Interactive Guidelines
+    // 1. Vertical guideline at page_x + 40.0
+    let v_guide_x = page_x + 40.0;
+    paint.set_color(snap_teal);
+    let mut pb_vg = PathBuilder::new();
+    pb_vg.move_to(v_guide_x, canvas_y + 20.0);
+    pb_vg.line_to(v_guide_x, canvas_y + canvas_h);
+    if let Some(p) = pb_vg.finish() {
+        let guide_stroke = Stroke {
+            width: 1.0,
+            dash: tiny_skia::StrokeDash::new(vec![4.0, 3.0], 0.0),
+            ..Default::default()
+        };
+        pixmap.stroke_path(&p, &paint, &guide_stroke, Transform::identity(), None);
+    }
+
+    // 2. Horizontal guideline at page_y + 240.0
+    let h_guide_y = page_y + 240.0;
+    let mut pb_hg = PathBuilder::new();
+    pb_hg.move_to(canvas_x + 20.0, h_guide_y);
+    pb_hg.line_to(canvas_x + canvas_w, h_guide_y);
+    if let Some(p) = pb_hg.finish() {
+        let guide_stroke = Stroke {
+            width: 1.0,
+            dash: tiny_skia::StrokeDash::new(vec![4.0, 3.0], 0.0),
+            ..Default::default()
+        };
+        pixmap.stroke_path(&p, &paint, &guide_stroke, Transform::identity(), None);
+    }
+
+    // B. Smart Alignment Guide: Magenta line through centers of Pentagon and Star
+    paint.set_color(align_magenta);
+    let mut pb_align = PathBuilder::new();
+    pb_align.move_to(canvas_x + 20.0, poly_cy);
+    pb_align.line_to(canvas_x + canvas_w, poly_cy);
+    if let Some(p) = pb_align.finish() {
+        let align_stroke = Stroke {
+            width: 1.2,
+            dash: tiny_skia::StrokeDash::new(vec![6.0, 4.0], 0.0),
+            ..Default::default()
+        };
+        pixmap.stroke_path(&p, &paint, &align_stroke, Transform::identity(), None);
+    }
+
+    // Alignment marker ticks on pentagon and star centers
+    for cx in [poly_cx, star_cx] {
+        let mut pb_c = PathBuilder::new();
+        pb_c.move_to(cx, poly_cy - 8.0);
+        pb_c.line_to(cx, poly_cy + 8.0);
+        if let Some(p) = pb_c.finish() {
+            let s = Stroke {
+                width: 1.5,
+                ..Default::default()
+            };
+            pixmap.stroke_path(&p, &paint, &s, Transform::identity(), None);
+        }
+    }
+
+    // C. Dynamic Polar Guide: 45° Ray from Rectangle corner
+    let corner_x = page_x + 200.0;
+    let corner_y = page_y + 160.0;
+    paint.set_color(dynamic_violet);
+    let mut pb_ray = PathBuilder::new();
+    let ray_len = 220.0_f32;
+    let angle_rad = 45.0_f32.to_radians();
+    let ray_end_x = corner_x + ray_len * angle_rad.cos();
+    let ray_end_y = corner_y + ray_len * angle_rad.sin();
+    pb_ray.move_to(corner_x, corner_y);
+    pb_ray.line_to(ray_end_x, ray_end_y);
+    if let Some(p) = pb_ray.finish() {
+        let ray_stroke = Stroke {
+            width: 1.2,
+            dash: tiny_skia::StrokeDash::new(vec![5.0, 3.0], 0.0),
+            ..Default::default()
+        };
+        pixmap.stroke_path(&p, &paint, &ray_stroke, Transform::identity(), None);
+    }
+
+    // Distance tick marks along the ray (every 40 units)
+    for dist in [40.0_f32, 80.0, 120.0, 160.0, 200.0] {
+        let tx = corner_x + dist * angle_rad.cos();
+        let ty = corner_y + dist * angle_rad.sin();
+        let nx = -angle_rad.sin() * 5.0;
+        let ny = angle_rad.cos() * 5.0;
+        let mut pb_t = PathBuilder::new();
+        pb_t.move_to(tx - nx, ty - ny);
+        pb_t.line_to(tx + nx, ty + ny);
+        if let Some(p) = pb_t.finish() {
+            let s = Stroke {
+                width: 1.0,
+                ..Default::default()
+            };
+            pixmap.stroke_path(&p, &paint, &s, Transform::identity(), None);
+        }
+    }
+
+    // D. Snap Target Glyphs
+    // 1. Center Glyph on Polygon (Circle with crosshair)
+    paint.set_color(snap_teal);
+    let mut pb_cg = PathBuilder::new();
+    pb_cg.push_circle(poly_cx, poly_cy, 6.0);
+    pb_cg.move_to(poly_cx - 9.0, poly_cy);
+    pb_cg.line_to(poly_cx + 9.0, poly_cy);
+    pb_cg.move_to(poly_cx, poly_cy - 9.0);
+    pb_cg.line_to(poly_cx, poly_cy + 9.0);
+    if let Some(p) = pb_cg.finish() {
+        let s = Stroke {
+            width: 1.5,
+            ..Default::default()
+        };
+        pixmap.stroke_path(&p, &paint, &s, Transform::identity(), None);
+    }
+
+    // 2. Midpoint Glyph on Top Edge of Rectangle (Triangle)
+    let mid_x = page_x + 120.0;
+    let mid_y = page_y + 60.0;
+    let mut pb_mg = PathBuilder::new();
+    pb_mg.move_to(mid_x, mid_y - 6.0);
+    pb_mg.line_to(mid_x + 6.0, mid_y + 5.0);
+    pb_mg.line_to(mid_x - 6.0, mid_y + 5.0);
+    pb_mg.close();
+    if let Some(p) = pb_mg.finish() {
+        let s = Stroke {
+            width: 1.5,
+            ..Default::default()
+        };
+        pixmap.stroke_path(&p, &paint, &s, Transform::identity(), None);
+    }
+
+    // 3. Node / Corner Glyph on Active Snap Point (Diamond)
+    let mut pb_ng = PathBuilder::new();
+    let sz = 7.0_f32;
+    pb_ng.move_to(corner_x, corner_y - sz);
+    pb_ng.line_to(corner_x + sz, corner_y);
+    pb_ng.line_to(corner_x, corner_y + sz);
+    pb_ng.line_to(corner_x - sz, corner_y);
+    pb_ng.close();
+    if let Some(p) = pb_ng.finish() {
+        let s = Stroke {
+            width: 1.8,
+            ..Default::default()
+        };
+        pixmap.stroke_path(&p, &paint, &s, Transform::identity(), None);
+    }
+
+    // E. Floating HUD Pill Badge near the active snap point
+    let hud_x = corner_x + 14.0;
+    let hud_y = corner_y - 28.0;
+    let hud_w = 145.0_f32;
+    let hud_h = 24.0_f32;
+
+    // Badge shadow
+    paint.set_color(Color::from_rgba8(0, 0, 0, 140));
+    let hud_s_rect = Rect::from_xywh(hud_x + 2.0, hud_y + 2.0, hud_w, hud_h).unwrap();
+    pixmap.fill_rect(hud_s_rect, &paint, Transform::identity(), None);
+
+    // Badge background
+    paint.set_color(Color::from_rgba8(22, 24, 29, 235));
+    let hud_rect = Rect::from_xywh(hud_x, hud_y, hud_w, hud_h).unwrap();
+    pixmap.fill_rect(hud_rect, &paint, Transform::identity(), None);
+
+    // Badge border (accent cyan)
+    paint.set_color(snap_teal);
+    let hud_p = PathBuilder::from_rect(hud_rect);
+    let hud_stroke = Stroke {
+        width: 1.2,
+        ..Default::default()
+    };
+    pixmap.stroke_path(&hud_p, &paint, &hud_stroke, Transform::identity(), None);
+
+    // Badge indicator dot
+    let mut pb_hdot = PathBuilder::new();
+    pb_hdot.push_circle(hud_x + 10.0, hud_y + 12.0, 3.5);
+    if let Some(p) = pb_hdot.finish() {
+        pixmap.fill_path(&p, &paint, FillRule::Winding, Transform::identity(), None);
     }
 
     // 11. Rulers (Top: Y = 68..88, Left: X = 48..68)

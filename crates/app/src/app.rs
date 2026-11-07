@@ -1,6 +1,7 @@
 //! VDrawApp — the top-level eframe application.
 
 use core_doc::{Document, RemoveShapesCommand, UndoStack};
+use core_snap::SnapSolver;
 use core_tools::{ToolId, ToolManager};
 use egui::ViewportCommand;
 
@@ -21,6 +22,7 @@ pub struct VDrawApp {
     doc: Document,
     undo_stack: UndoStack,
     tool_manager: ToolManager,
+    snap_solver: SnapSolver,
     canvas: CanvasState,
     toolbar: ToolbarState,
     dock: DockState,
@@ -43,6 +45,7 @@ impl VDrawApp {
             doc: Document::new("Untitled 1"),
             undo_stack: UndoStack::new(),
             tool_manager: ToolManager::new(ToolId::Pick),
+            snap_solver: SnapSolver::default(),
             canvas: CanvasState::default(),
             toolbar: ToolbarState::default(),
             dock: DockState::default(),
@@ -102,6 +105,13 @@ impl eframe::App for VDrawApp {
             // Select All
             if i.modifiers.ctrl && i.key_pressed(egui::Key::A) {
                 select_all_action = true;
+            }
+
+            // Phase 3: Toggle Dynamic Guides (Alt+Shift+D)
+            if i.modifiers.alt && i.modifiers.shift && i.key_pressed(egui::Key::D) {
+                self.snap_solver.config.dynamic_guides.enabled =
+                    !self.snap_solver.config.dynamic_guides.enabled;
+                self.statusbar.dynamic_snap = self.snap_solver.config.dynamic_guides.enabled;
             }
 
             // Tool shortcuts (when no text input active)
@@ -433,6 +443,7 @@ impl eframe::App for VDrawApp {
                         &mut self.canvas,
                         &mut self.statusbar,
                         &self.doc,
+                        &mut self.snap_solver,
                     );
                 });
         }
@@ -493,12 +504,22 @@ impl eframe::App for VDrawApp {
                     self.canvas.fit_page(rect);
                 }
 
+                // Synchronize spatial index and guidelines
+                let shapes: Vec<_> = self
+                    .doc
+                    .active_page()
+                    .map(|p| p.all_shapes().cloned().collect())
+                    .unwrap_or_default();
+                self.snap_solver.spatial_index.rebuild(&shapes);
+                self.snap_solver.guidelines = self.doc.guidelines.clone();
+
                 canvas::show_canvas(
                     ui,
                     &mut self.canvas,
                     &mut self.doc,
                     &mut self.undo_stack,
                     &mut self.tool_manager,
+                    &mut self.snap_solver,
                 );
             });
     }

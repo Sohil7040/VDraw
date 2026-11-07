@@ -49,8 +49,8 @@ impl Tool for SpiralTool {
         event: &PointerEvent,
     ) -> bool {
         self.is_dragging = true;
-        self.start_pos = Some(event.world_pos);
-        self.current_pos = Some(event.world_pos);
+        self.start_pos = Some(event.pos());
+        self.current_pos = Some(event.pos());
         true
     }
 
@@ -61,7 +61,7 @@ impl Tool for SpiralTool {
         event: &PointerEvent,
     ) -> bool {
         if self.is_dragging {
-            self.current_pos = Some(event.world_pos);
+            self.current_pos = Some(event.pos());
             true
         } else {
             false
@@ -85,7 +85,8 @@ impl Tool for SpiralTool {
         };
         self.current_pos = None;
 
-        let expansion = (event.world_pos - start).length();
+        let expansion = (event.pos() - start).length();
+
         if expansion < 0.5 {
             return false;
         }

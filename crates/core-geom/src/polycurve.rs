@@ -455,4 +455,36 @@ impl Polycurve {
     pub fn length(&self) -> f64 {
         self.subpaths.iter().map(|s| s.length()).sum()
     }
+
+    /// Flatten all subpaths into polylines within tolerance (mm).
+    pub fn flatten(&self, tolerance: f64) -> Vec<Point2> {
+        let mut pts = Vec::new();
+        for sub in &self.subpaths {
+            pts.extend(sub.flatten(tolerance));
+        }
+        pts
+    }
+
+    /// Compute the closest point on any subpath to query point `p`.
+    /// Returns `(closest_point, distance)`.
+    pub fn closest_point(&self, p: Point2) -> (Point2, f64) {
+        let mut best_pt = p;
+        let mut min_dist = f64::MAX;
+
+        for sub in &self.subpaths {
+            for c in sub.to_cubics() {
+                let (_, pt, dist) = c.closest_point(p);
+                if dist < min_dist {
+                    min_dist = dist;
+                    best_pt = pt;
+                }
+            }
+        }
+
+        if min_dist == f64::MAX {
+            (p, 0.0)
+        } else {
+            (best_pt, min_dist)
+        }
+    }
 }

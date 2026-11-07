@@ -1,3 +1,4 @@
+use crate::guideline::{Guideline, GuidelineId, GuidelineOrientation};
 use crate::selection::Selection;
 use crate::shape::{Shape, ShapeId};
 use crate::units::Unit;
@@ -125,6 +126,8 @@ pub struct Document {
     pub active_page: usize,
     pub selection: Selection,
     pub next_shape_id: u64,
+    pub guidelines: Vec<Guideline>,
+    pub next_guideline_id: u64,
 }
 
 impl Default for Document {
@@ -136,6 +139,8 @@ impl Default for Document {
             active_page: 0,
             selection: Selection::default(),
             next_shape_id: 1,
+            guidelines: Vec::new(),
+            next_guideline_id: 1,
         }
     }
 }
@@ -152,6 +157,36 @@ impl Document {
         let id = ShapeId(self.next_shape_id);
         self.next_shape_id += 1;
         id
+    }
+
+    pub fn allocate_guideline_id(&mut self) -> GuidelineId {
+        let id = GuidelineId(self.next_guideline_id);
+        self.next_guideline_id += 1;
+        id
+    }
+
+    pub fn add_guideline(&mut self, orientation: GuidelineOrientation) -> GuidelineId {
+        let id = self.allocate_guideline_id();
+        self.guidelines.push(Guideline {
+            id,
+            orientation,
+            locked: false,
+            name: None,
+        });
+        id
+    }
+
+    pub fn remove_guideline(&mut self, id: GuidelineId) -> bool {
+        if let Some(pos) = self.guidelines.iter().position(|g| g.id == id) {
+            self.guidelines.remove(pos);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn clear_guidelines(&mut self) {
+        self.guidelines.clear();
     }
 
     pub fn active_page(&self) -> Option<&Page> {

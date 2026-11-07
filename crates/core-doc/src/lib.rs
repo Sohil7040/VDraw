@@ -3,6 +3,7 @@
 pub mod color;
 pub mod command;
 pub mod document;
+pub mod guideline;
 pub mod selection;
 pub mod shape;
 pub mod style;
@@ -14,7 +15,9 @@ pub use command::{
     SetStyleCommand, TransformShapesCommand, UndoStack,
 };
 pub use document::{Document, Layer, Page};
+pub use guideline::{Guideline, GuidelineId, GuidelineOrientation};
 pub use selection::{HandleId, HandleInfo, Selection, TransformMode};
+
 pub use shape::{Shape, ShapeId, ShapeKind};
 pub use style::{LineCap, LineJoin, Stroke, Style};
 pub use units::Unit;

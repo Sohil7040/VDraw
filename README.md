@@ -2,7 +2,7 @@
 
 **VDraw** is a professional 2D vector illustration, CAD, and laser-CAM application built in **pure Rust**, featuring a modern desktop interface and real-time GPU-accelerated canvas.
 
-![VDraw Phase 2 UI](docs/vdraw_ui_phase2.png)
+![VDraw Phase 3 UI](docs/vdraw_ui_phase3.png)
 
 ---
 
@@ -138,7 +138,7 @@ cargo run --bin vdraw -- --screenshot output.png
 - [x] **Phase 0:** Workspace scaffold, CI, theme token system, infinite canvas with rulers & pan/zoom, dock layout.
 - [x] **Phase 1:** `core-geom` primitives, Bézier algorithms, `core-doc` hierarchy, Pick/Rect/Ellipse/Line/Pen tools, undo/redo.
 - [x] **Phase 2:** Shape/Node tool (`F10`), live handle constraints (`Cusp`, `Smooth`, `Symmetrical`), Schneider curve fitting (`F5`), Polygon/Star/Spiral tools, Fill & Stroke inspector with laser hairline classification.
-- [ ] **Phase 3:** Snapping system, R*-tree spatial index, dynamic angular guides, smart alignment guides, interactive ruler guidelines.
+- [x] **Phase 3:** Snapping system, R*-tree spatial index (0.0055 ms queries on 50k shapes), dynamic 15° polar guides, smart alignment guides, interactive ruler guidelines.
 - [ ] **Phase 4:** Booleans (Weld, Trim, Intersect, Exclude), Knife, Eraser, Virtual Segment Delete, curve re-fitting.
 - [ ] **Phase 5:** Laser-CAM pipeline, containment tree, inside-out ordering, kerf offset, HPGL/G-code export, simulated laser preview.
 - [ ] **Phase 6:** SVG/DXF I/O, native project format (`.vdraw`), PDF/PNG export, dimensioning tools.

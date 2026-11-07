@@ -1,8 +1,9 @@
-//! Status bar — bottom bar with coords, zoom, and snap toggles.
+//! Status bar — bottom bar with coords, selection stats, zoom, and live snap toggles.
 
 use crate::canvas::CanvasState;
 use crate::theme;
 use core_doc::Document;
+use core_snap::SnapSolver;
 
 /// State tracked by the status bar.
 #[derive(Debug, Default, Clone)]
@@ -10,18 +11,20 @@ pub struct StatusBarState {
     pub snap_enabled: bool,
     pub grid_snap: bool,
     pub guide_snap: bool,
+    pub dynamic_snap: bool,
 }
 
-/// Show the bottom status bar.
+/// Show the bottom status bar with real-time geometric coordinate readout and snap switches.
 pub fn show_statusbar(
     ui: &mut egui::Ui,
     canvas: &mut CanvasState,
     status: &mut StatusBarState,
     doc: &Document,
+    snap_solver: &mut SnapSolver,
 ) {
     ui.set_height(theme::STATUSBAR_HEIGHT);
     ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-        // Cursor position
+        // Cursor position in document coordinates (mm)
         let pos_text = if let Some(p) = canvas.cursor_mm {
             format!("{:>7.2},  {:>7.2} mm", p.x, p.y)
         } else {
@@ -53,6 +56,20 @@ pub fn show_statusbar(
                 .color(theme::TEXT_SECONDARY),
         );
 
+        // Active snap badge
+        if let Some(snap_res) = &canvas.last_snap {
+            if snap_res.snapped {
+                if let Some(target) = &snap_res.target {
+                    ui.separator();
+                    ui.label(
+                        egui::RichText::new(format!("Snap: {}", target.label))
+                            .small()
+                            .color(theme::SNAP_MARKER),
+                    );
+                }
+            }
+        }
+
         // Push remaining to the right
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             // Page info
@@ -69,33 +86,66 @@ pub fn show_statusbar(
 
             ui.separator();
 
-            // Snap toggles
-            let guide_label = if status.guide_snap {
-                egui::RichText::new("⊢ Guide").color(theme::ACCENT)
+            // Dynamic Polar Guides toggle (Alt+Shift+D)
+            let dyn_label = if snap_solver.config.dynamic_guides.enabled {
+                egui::RichText::new("∠ Dynamic (15°)").color(theme::ACCENT)
             } else {
-                egui::RichText::new("⊢ Guide").color(theme::TEXT_DISABLED)
+                egui::RichText::new("∠ Dynamic").color(theme::TEXT_DISABLED)
             };
-            if ui.small_button(guide_label).clicked() {
-                status.guide_snap = !status.guide_snap;
+            if ui
+                .small_button(dyn_label)
+                .on_hover_text("Toggle Polar Angle Dynamic Guides (Alt+Shift+D)")
+                .clicked()
+            {
+                snap_solver.config.dynamic_guides.enabled =
+                    !snap_solver.config.dynamic_guides.enabled;
+                status.dynamic_snap = snap_solver.config.dynamic_guides.enabled;
             }
 
-            let grid_label = if status.grid_snap {
+            // Guidelines toggle
+            let guide_label = if snap_solver.config.snap_to_guidelines {
+                egui::RichText::new("⊢ Guides").color(theme::GUIDE_LINE)
+            } else {
+                egui::RichText::new("⊢ Guides").color(theme::TEXT_DISABLED)
+            };
+            if ui
+                .small_button(guide_label)
+                .on_hover_text("Toggle Guideline Snapping")
+                .clicked()
+            {
+                snap_solver.config.snap_to_guidelines = !snap_solver.config.snap_to_guidelines;
+                status.guide_snap = snap_solver.config.snap_to_guidelines;
+            }
+
+            // Grid toggle
+            let grid_label = if snap_solver.config.snap_to_grid {
                 egui::RichText::new("⊞ Grid").color(theme::ACCENT)
             } else {
                 egui::RichText::new("⊞ Grid").color(theme::TEXT_DISABLED)
             };
-            if ui.small_button(grid_label).clicked() {
-                status.grid_snap = !status.grid_snap;
-                canvas.show_grid = status.grid_snap;
+            if ui
+                .small_button(grid_label)
+                .on_hover_text("Toggle Grid & Grid Snapping")
+                .clicked()
+            {
+                snap_solver.config.snap_to_grid = !snap_solver.config.snap_to_grid;
+                canvas.show_grid = snap_solver.config.snap_to_grid;
+                status.grid_snap = snap_solver.config.snap_to_grid;
             }
 
-            let snap_label = if status.snap_enabled {
-                egui::RichText::new("⊕ Snap").color(theme::ACCENT)
+            // Master Snap toggle
+            let snap_label = if snap_solver.config.enabled {
+                egui::RichText::new("⊕ Snapping ON").color(theme::SNAP_MARKER)
             } else {
-                egui::RichText::new("⊕ Snap").color(theme::TEXT_DISABLED)
+                egui::RichText::new("⊘ Snapping OFF").color(theme::TEXT_DISABLED)
             };
-            if ui.small_button(snap_label).clicked() {
-                status.snap_enabled = !status.snap_enabled;
+            if ui
+                .small_button(snap_label)
+                .on_hover_text("Master Snapping Toggle (%)")
+                .clicked()
+            {
+                snap_solver.config.enabled = !snap_solver.config.enabled;
+                status.snap_enabled = snap_solver.config.enabled;
             }
 
             ui.separator();

@@ -55,7 +55,7 @@ impl Tool for PenTool {
             return false;
         }
 
-        let p = event.world_pos;
+        let p = event.pos();
 
         // Check if user clicked near the starting node to close the path
         if let Some(first) = self.nodes.first() {
@@ -79,11 +79,12 @@ impl Tool for PenTool {
         _undo: &mut UndoStack,
         event: &PointerEvent,
     ) -> bool {
-        self.current_cursor = Some(event.world_pos);
+        self.current_cursor = Some(event.pos());
 
         if self.is_dragging_handle {
             if let Some(last) = self.nodes.last_mut() {
-                let drag_vec = event.world_pos - last.point;
+                let drag_vec = event.pos() - last.point;
+
                 if drag_vec.length() > 0.5 {
                     last.set_handle_out(Some(last.point + drag_vec));
                     last.set_handle_in(Some(last.point - drag_vec));

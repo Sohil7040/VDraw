@@ -59,6 +59,18 @@ static COMMANDS: &[Command] = &[
         shortcut: "%",
     },
     Command {
+        label: "Toggle Dynamic Guides",
+        shortcut: "Alt+Shift+D",
+    },
+    Command {
+        label: "Toggle Alignment Guides",
+        shortcut: "",
+    },
+    Command {
+        label: "Clear All Guidelines",
+        shortcut: "",
+    },
+    Command {
         label: "Pick Tool",
         shortcut: "V",
     },

@@ -870,8 +870,11 @@ dependencies = [
 name = "core-snap"
 version = "0.1.0"
 dependencies = [
+ "core-doc",
  "core-geom",
+ "proptest",
  "rstar",
+ "serde",
 ]
 
 [[package]]
@@ -880,6 +883,7 @@ version = "0.1.0"
 dependencies = [
  "core-doc",
  "core-geom",
+ "core-snap",
  "egui",
 ]
 

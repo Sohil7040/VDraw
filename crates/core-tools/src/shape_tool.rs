@@ -341,7 +341,7 @@ impl Tool for ShapeTool {
                         .transform
                         .inverse()
                         .unwrap_or(core_geom::Affine2::IDENTITY);
-                    let local_pt = tr_inv.transform_point(event.world_pos);
+                    let local_pt = tr_inv.transform_point(event.pos());
                     if let ShapeKind::Path(poly) = &mut shape.kind {
                         if let Some(sub) = poly.subpaths.get_mut(sidx) {
                             if let Some(node) = sub.nodes.get_mut(nidx) {
@@ -365,7 +365,7 @@ impl Tool for ShapeTool {
                         .transform
                         .inverse()
                         .unwrap_or(core_geom::Affine2::IDENTITY);
-                    let local_pt = tr_inv.transform_point(event.world_pos);
+                    let local_pt = tr_inv.transform_point(event.pos());
                     if let ShapeKind::Path(poly) = &mut shape.kind {
                         if let Some(sub) = poly.subpaths.get_mut(sidx) {
                             if let Some(node) = sub.nodes.get_mut(nidx) {
@@ -388,7 +388,7 @@ impl Tool for ShapeTool {
                         .transform
                         .inverse()
                         .unwrap_or(core_geom::Affine2::IDENTITY);
-                    let local_pt = tr_inv.transform_point(event.world_pos);
+                    let local_pt = tr_inv.transform_point(event.pos());
                     if let ShapeKind::Path(poly) = &mut shape.kind {
                         if let Some(sub) = poly.subpaths.get_mut(sidx) {
                             if let Some(node) = sub.nodes.get_mut(nidx) {

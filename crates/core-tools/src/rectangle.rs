@@ -59,8 +59,8 @@ impl Tool for RectangleTool {
         event: &PointerEvent,
     ) -> bool {
         if event.primary {
-            self.drag_start = Some(event.world_pos);
-            self.current_pt = Some(event.world_pos);
+            self.drag_start = Some(event.pos());
+            self.current_pt = Some(event.pos());
             true
         } else {
             false
@@ -74,7 +74,7 @@ impl Tool for RectangleTool {
         event: &PointerEvent,
     ) -> bool {
         if self.drag_start.is_some() {
-            self.current_pt = Some(event.world_pos);
+            self.current_pt = Some(event.pos());
             true
         } else {
             false
@@ -88,7 +88,8 @@ impl Tool for RectangleTool {
         event: &PointerEvent,
     ) -> bool {
         if let Some(start) = self.drag_start.take() {
-            let current = event.world_pos;
+            let current = event.pos();
+
             let rect =
                 self.calculate_rect(start, current, event.modifiers.shift, event.modifiers.ctrl);
 

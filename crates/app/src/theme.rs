@@ -22,6 +22,9 @@ pub const RULER_TICK: egui::Color32 = egui::Color32::from_rgb(0x4E, 0x55, 0x65);
 pub const RULER_TEXT: egui::Color32 = egui::Color32::from_rgb(0x8B, 0x91, 0xA1);
 pub const GRID_LINE: egui::Color32 = egui::Color32::from_rgba_premultiplied(0x2E, 0x33, 0x3E, 0x80);
 pub const GUIDE_LINE: egui::Color32 = egui::Color32::from_rgb(0x20, 0xD3, 0xB5);
+pub const SNAP_MARKER: egui::Color32 = egui::Color32::from_rgb(0x20, 0xD3, 0xB5);
+pub const ALIGN_GUIDE: egui::Color32 = egui::Color32::from_rgb(0xFF, 0x40, 0x81);
+pub const DYNAMIC_GUIDE: egui::Color32 = egui::Color32::from_rgb(0x7C, 0x5C, 0xFF);
 pub const SELECTION_FILL: egui::Color32 =
     egui::Color32::from_rgba_premultiplied(0x7C, 0x5C, 0xFF, 0x28);
 pub const SELECTION_STROKE: egui::Color32 = egui::Color32::from_rgb(0x7C, 0x5C, 0xFF);

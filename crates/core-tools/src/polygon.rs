@@ -49,8 +49,8 @@ impl Tool for PolygonTool {
         event: &PointerEvent,
     ) -> bool {
         self.is_dragging = true;
-        self.start_pos = Some(event.world_pos);
-        self.current_pos = Some(event.world_pos);
+        self.start_pos = Some(event.pos());
+        self.current_pos = Some(event.pos());
         true
     }
 
@@ -61,7 +61,7 @@ impl Tool for PolygonTool {
         event: &PointerEvent,
     ) -> bool {
         if self.is_dragging {
-            self.current_pos = Some(event.world_pos);
+            self.current_pos = Some(event.pos());
             true
         } else {
             false
@@ -85,7 +85,8 @@ impl Tool for PolygonTool {
         };
         self.current_pos = None;
 
-        let radius = (event.world_pos - start).length();
+        let radius = (event.pos() - start).length();
+
         if radius < 0.5 {
             return false;
         }

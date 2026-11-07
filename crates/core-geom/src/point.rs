@@ -22,6 +22,16 @@ impl Point2 {
     }
 
     #[inline]
+    pub fn distance(self, other: Self) -> f64 {
+        self.distance_to(other)
+    }
+
+    #[inline]
+    pub fn distance_squared(self, other: Self) -> f64 {
+        self.distance_squared_to(other)
+    }
+
+    #[inline]
     pub fn distance_squared_to(self, other: Self) -> f64 {
         (self - other).length_squared()
     }
