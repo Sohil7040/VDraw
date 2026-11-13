@@ -45,12 +45,14 @@ pub fn find_virtual_segments(
             continue;
         }
 
-        // Find all intersection points along this subpath
-        let mut split_indices = Vec::new();
+        let mut current_pts = vec![pts[0]];
 
         for i in 0..pts.len() - 1 {
             let p1 = pts[i];
             let p2 = pts[i + 1];
+
+            // Collect all intersections on segment i
+            let mut seg_intersections = Vec::new();
 
             for other in &other_polylines {
                 for j in 0..other.len() - 1 {
@@ -64,48 +66,27 @@ pub fn find_virtual_segments(
                         continue;
                     }
 
-                    if let Some(inter) = segment_intersection(p1, p2, o1, o2) {
-                        split_indices.push((i, inter));
+                    if let Some((u, inter)) = segment_intersection_param(p1, p2, o1, o2) {
+                        seg_intersections.push((u, inter));
                     }
                 }
             }
-        }
 
-        // If no intersections, the whole subpath is one virtual segment
-        if split_indices.is_empty() {
-            if let Some(seg) = make_virtual_segment(sub_idx, pts) {
-                segments.push(seg);
-            }
-            continue;
-        }
+            // Sort intersections along the segment by u parameter (p1 -> p2)
+            seg_intersections
+                .sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
 
-        // Sort intersections by segment index
-        split_indices.sort_by(|a, b| a.0.cmp(&b.0));
-
-        // Slice subpath at intersections into distinct virtual segments
-        let mut current_pts = Vec::new();
-        let mut last_split_idx = 0;
-
-        for (split_idx, inter) in split_indices {
-            for k in last_split_idx..=split_idx {
-                if k < pts.len() {
-                    current_pts.push(pts[k]);
+            for (_u, inter) in seg_intersections {
+                current_pts.push(inter);
+                if let Some(seg) = make_virtual_segment(sub_idx, current_pts) {
+                    segments.push(seg);
                 }
-            }
-            current_pts.push(inter);
-
-            if let Some(seg) = make_virtual_segment(sub_idx, current_pts) {
-                segments.push(seg);
+                current_pts = vec![inter];
             }
 
-            current_pts = vec![inter];
-            last_split_idx = split_idx + 1;
+            current_pts.push(p2);
         }
 
-        // Remaining tail
-        for &pt in pts.iter().skip(last_split_idx) {
-            current_pts.push(pt);
-        }
         if let Some(seg) = make_virtual_segment(sub_idx, current_pts) {
             segments.push(seg);
         }
@@ -192,7 +173,12 @@ fn make_virtual_segment(subpath_idx: usize, points: Vec<Point2>) -> Option<Virtu
     })
 }
 
-fn segment_intersection(p1: Point2, p2: Point2, p3: Point2, p4: Point2) -> Option<Point2> {
+fn segment_intersection_param(
+    p1: Point2,
+    p2: Point2,
+    p3: Point2,
+    p4: Point2,
+) -> Option<(f64, Point2)> {
     let d = (p2.x - p1.x) * (p4.y - p3.y) - (p2.y - p1.y) * (p4.x - p3.x);
     if d.abs() < 1e-9 {
         return None;
@@ -202,9 +188,9 @@ fn segment_intersection(p1: Point2, p2: Point2, p3: Point2, p4: Point2) -> Optio
     let v = ((p3.x - p1.x) * (p2.y - p1.y) - (p3.y - p1.y) * (p2.x - p1.x)) / d;
 
     if (0.001..=0.999).contains(&u) && (0.001..=0.999).contains(&v) {
-        Some(Point2::new(
-            p1.x + u * (p2.x - p1.x),
-            p1.y + u * (p2.y - p1.y),
+        Some((
+            u,
+            Point2::new(p1.x + u * (p2.x - p1.x), p1.y + u * (p2.y - p1.y)),
         ))
     } else {
         None

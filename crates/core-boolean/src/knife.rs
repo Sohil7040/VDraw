@@ -1,11 +1,14 @@
 //! Knife slicing engine: divides vector shapes across a straight line or freehand stroke.
 
-use clipper2_rs::{difference_d, inflate_paths_d, EndType, FillRule, JoinType, PathD, PointD};
+use clipper2_rs::{
+    difference_d, inflate_paths_d, EndType, FillRule, JoinType, PathD, PathsD, PointD,
+};
 use core_geom::rect::Rect;
 use core_geom::{Point2, Polycurve};
 
 use crate::convert::{
-    paths_d_to_polycurve, polycurve_to_paths_d, polyline_to_subpath, DEFAULT_FLATTEN_TOLERANCE,
+    paths_d_to_polycurve, polycurve_to_paths_d_checked, polygon_area, polyline_to_subpath,
+    DEFAULT_FLATTEN_TOLERANCE,
 };
 use crate::error::BooleanError;
 
@@ -38,7 +41,25 @@ pub fn slice_shape(
     }
 }
 
-/// Slices closed shapes by subtracting a hairline slit and separating disconnected islands.
+/// Point-in-polygon test (ray casting algorithm).
+fn point_in_polygon(pt: Point2, poly: &[Point2]) -> bool {
+    let mut inside = false;
+    let n = poly.len();
+    for i in 0..n {
+        let j = (i + 1) % n;
+        let pi = poly[i];
+        let pj = poly[j];
+        if ((pi.y > pt.y) != (pj.y > pt.y))
+            && (pt.x < (pj.x - pi.x) * (pt.y - pi.y) / (pj.y - pi.y + 1e-12) + pi.x)
+        {
+            inside = !inside;
+        }
+    }
+    inside
+}
+
+/// Slices closed shapes by subtracting a hairline slit and separating disconnected islands,
+/// correctly pairing outer boundaries with their contained inner holes.
 fn slice_closed_shape(
     shape: &Polycurve,
     cut_line: &[Point2],
@@ -67,7 +88,7 @@ fn slice_closed_shape(
     )
     .map_err(|e| BooleanError::ClipperError(format!("{:?}", e)))?;
 
-    let subject = polycurve_to_paths_d(shape, DEFAULT_FLATTEN_TOLERANCE);
+    let subject = polycurve_to_paths_d_checked(shape, DEFAULT_FLATTEN_TOLERANCE)?;
     let cut_result = difference_d(&subject, &slit, fill_rule, precision)
         .map_err(|e| BooleanError::ClipperError(format!("{:?}", e)))?;
 
@@ -75,16 +96,57 @@ fn slice_closed_shape(
         return Err(BooleanError::NoKnifeIntersection);
     }
 
-    // Convert each resulting closed contour into its own independent Polycurve
-    let mut pieces = Vec::new();
-    for island in &cut_result {
-        if island.len() < 3 {
+    // Separate outer boundaries from holes
+    let mut outers: Vec<(PathD, Vec<Point2>)> = Vec::new();
+    let mut holes: Vec<(PathD, Vec<Point2>)> = Vec::new();
+
+    for path in &cut_result {
+        if path.len() < 3 {
             continue;
         }
+        let pts: Vec<Point2> = path.iter().map(|p| Point2::new(p.x, p.y)).collect();
+        let area = polygon_area(&pts);
+        if area > 0.0 {
+            outers.push((path.clone(), pts));
+        } else {
+            holes.push((path.clone(), pts));
+        }
+    }
 
-        let island_paths = vec![island.clone()];
+    // If orientation didn't yield outers, treat all as independent outers
+    if outers.is_empty() {
+        for path in &cut_result {
+            if path.len() >= 3 {
+                let pts: Vec<Point2> = path.iter().map(|p| Point2::new(p.x, p.y)).collect();
+                outers.push((path.clone(), pts));
+            }
+        }
+        holes.clear();
+    }
 
-        let piece_poly = paths_d_to_polycurve(&island_paths, auto_close, true);
+    // Group holes with the outer boundary that contains them
+    let mut outer_groups: Vec<PathsD> = outers.iter().map(|(p, _)| vec![p.clone()]).collect();
+
+    for (hole_path, hole_pts) in holes {
+        if let Some(first_pt) = hole_pts.first() {
+            let mut assigned = false;
+            for (idx, (_, outer_pts)) in outers.iter().enumerate() {
+                if point_in_polygon(*first_pt, outer_pts) {
+                    outer_groups[idx].push(hole_path.clone());
+                    assigned = true;
+                    break;
+                }
+            }
+            if !assigned && !outer_groups.is_empty() {
+                outer_groups[0].push(hole_path);
+            }
+        }
+    }
+
+    // Convert each resulting closed island into its own independent Polycurve
+    let mut pieces = Vec::new();
+    for group in outer_groups {
+        let piece_poly = paths_d_to_polycurve(&group, auto_close, true);
         if !piece_poly.subpaths.is_empty() {
             pieces.push(piece_poly);
         }
@@ -111,38 +173,45 @@ fn slice_open_paths(
             continue;
         }
 
-        let mut split_segments: Vec<Vec<Point2>> = vec![Vec::new()];
+        let mut current_segment = vec![pts[0]];
 
         for i in 0..pts.len() - 1 {
             let p1 = pts[i];
             let p2 = pts[i + 1];
 
-            split_segments.last_mut().unwrap().push(p1);
-
-            // Check intersection with any segment in cut_line
+            // Find all intersections on segment (p1, p2)
+            let mut seg_inters = Vec::new();
             for j in 0..cut_line.len() - 1 {
                 let c1 = cut_line[j];
                 let c2 = cut_line[j + 1];
 
-                if let Some(inter) = segment_intersection(p1, p2, c1, c2) {
-                    split_segments.last_mut().unwrap().push(inter);
-                    // Start new segment piece
-                    split_segments.push(vec![inter]);
+                if let Some((u, inter)) = segment_intersection_param(p1, p2, c1, c2) {
+                    seg_inters.push((u, inter));
                 }
             }
-        }
 
-        if let Some(last) = pts.last() {
-            split_segments.last_mut().unwrap().push(*last);
-        }
+            // Sort along p1 -> p2
+            seg_inters.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
 
-        for seg in split_segments {
-            if seg.len() >= 2 {
-                let piece_sub = polyline_to_subpath(&seg, false);
-                all_pieces.push(Polycurve {
-                    subpaths: vec![piece_sub],
-                });
+            for (_u, inter) in seg_inters {
+                current_segment.push(inter);
+                if current_segment.len() >= 2 {
+                    let piece_sub = polyline_to_subpath(&current_segment, false);
+                    all_pieces.push(Polycurve {
+                        subpaths: vec![piece_sub],
+                    });
+                }
+                current_segment = vec![inter];
             }
+
+            current_segment.push(p2);
+        }
+
+        if current_segment.len() >= 2 {
+            let piece_sub = polyline_to_subpath(&current_segment, false);
+            all_pieces.push(Polycurve {
+                subpaths: vec![piece_sub],
+            });
         }
     }
 
@@ -177,7 +246,7 @@ fn line_intersects_rect(line: &[Point2], rect: &Rect) -> bool {
         for edge_idx in 0..4 {
             let c1 = corners[edge_idx];
             let c2 = corners[(edge_idx + 1) % 4];
-            if segment_intersection(l1, l2, c1, c2).is_some() {
+            if segment_intersection_param(l1, l2, c1, c2).is_some() {
                 return true;
             }
         }
@@ -186,7 +255,12 @@ fn line_intersects_rect(line: &[Point2], rect: &Rect) -> bool {
     false
 }
 
-fn segment_intersection(p1: Point2, p2: Point2, p3: Point2, p4: Point2) -> Option<Point2> {
+fn segment_intersection_param(
+    p1: Point2,
+    p2: Point2,
+    p3: Point2,
+    p4: Point2,
+) -> Option<(f64, Point2)> {
     let d = (p2.x - p1.x) * (p4.y - p3.y) - (p2.y - p1.y) * (p4.x - p3.x);
     if d.abs() < 1e-9 {
         return None;
@@ -196,9 +270,9 @@ fn segment_intersection(p1: Point2, p2: Point2, p3: Point2, p4: Point2) -> Optio
     let v = ((p3.x - p1.x) * (p2.y - p1.y) - (p3.y - p1.y) * (p2.x - p1.x)) / d;
 
     if (0.0..=1.0).contains(&u) && (0.0..=1.0).contains(&v) {
-        Some(Point2::new(
-            p1.x + u * (p2.x - p1.x),
-            p1.y + u * (p2.y - p1.y),
+        Some((
+            u,
+            Point2::new(p1.x + u * (p2.x - p1.x), p1.y + u * (p2.y - p1.y)),
         ))
     } else {
         None

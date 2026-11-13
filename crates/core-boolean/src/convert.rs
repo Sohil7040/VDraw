@@ -5,25 +5,84 @@ use clipper2_rs::{PathD, PathsD, PointD};
 use core_geom::curve_fit::fit_curve;
 use core_geom::{BezierNode, NodeType, Point2, Polycurve, Subpath};
 
+use crate::error::BooleanError;
+
+/// Maximum supported absolute coordinate in millimeters to prevent Clipper2 integer overflow.
+pub const MAX_COORDINATE_MM: f64 = 100_000.0;
+
 /// Default curve flattening tolerance in millimeters for boolean operations.
 pub const DEFAULT_FLATTEN_TOLERANCE: f64 = 0.02;
 
 /// Default error tolerance for Schneider curve re-fitting.
 pub const DEFAULT_REFIT_TOLERANCE: f64 = 0.05;
 
-/// Converts a `Polycurve` into `clipper2_rs::PathsD`.
-pub fn polycurve_to_paths_d(poly: &Polycurve, tolerance: f64) -> PathsD {
+/// Computes the signed polygon area of a closed set of 2D points.
+pub fn polygon_area(pts: &[Point2]) -> f64 {
+    if pts.len() < 3 {
+        return 0.0;
+    }
+    let mut area = 0.0;
+    let n = pts.len();
+    for i in 0..n {
+        let j = (i + 1) % n;
+        area += pts[i].x * pts[j].y - pts[j].x * pts[i].y;
+    }
+    area * 0.5
+}
+
+/// Converts a `Polycurve` into `clipper2_rs::PathsD` with strict coordinate validation.
+pub fn polycurve_to_paths_d_checked(
+    poly: &Polycurve,
+    tolerance: f64,
+) -> Result<PathsD, BooleanError> {
     let mut paths = PathsD::new();
+    let mut valid_subpath_count = 0;
 
     for sub in &poly.subpaths {
         if sub.nodes.is_empty() {
             continue;
         }
 
+        // Validate node coordinates
+        for node in &sub.nodes {
+            if !node.point.x.is_finite() || !node.point.y.is_finite() {
+                return Err(BooleanError::NonFiniteCoordinate);
+            }
+            if node.point.x.abs() > MAX_COORDINATE_MM {
+                return Err(BooleanError::CoordinateOutOfRange(node.point.x));
+            }
+            if node.point.y.abs() > MAX_COORDINATE_MM {
+                return Err(BooleanError::CoordinateOutOfRange(node.point.y));
+            }
+            if let Some(h_in) = node.handle_in {
+                if !h_in.is_finite() {
+                    return Err(BooleanError::NonFiniteCoordinate);
+                }
+            }
+            if let Some(h_out) = node.handle_out {
+                if !h_out.is_finite() {
+                    return Err(BooleanError::NonFiniteCoordinate);
+                }
+            }
+        }
+
         let pts = sub.flatten(tolerance);
         if pts.len() < 2 {
             continue;
         }
+
+        // Check closed polygon degeneracy
+        if sub.closed {
+            if pts.len() < 3 {
+                continue;
+            }
+            let area = polygon_area(&pts);
+            if area.abs() < 1e-9 {
+                continue;
+            }
+        }
+
+        valid_subpath_count += 1;
 
         let mut path: PathD = pts.into_iter().map(|p| PointD::new(p.x, p.y)).collect();
 
@@ -41,7 +100,16 @@ pub fn polycurve_to_paths_d(poly: &Polycurve, tolerance: f64) -> PathsD {
         }
     }
 
-    paths
+    if valid_subpath_count == 0 && !poly.subpaths.is_empty() {
+        return Err(BooleanError::DegeneratePolygon);
+    }
+
+    Ok(paths)
+}
+
+/// Converts a `Polycurve` into `clipper2_rs::PathsD`.
+pub fn polycurve_to_paths_d(poly: &Polycurve, tolerance: f64) -> PathsD {
+    polycurve_to_paths_d_checked(poly, tolerance).unwrap_or_default()
 }
 
 /// Converts `clipper2_rs::PathsD` back into a `Polycurve`.

@@ -65,8 +65,19 @@ impl Selection {
         self.ids.contains(&id)
     }
 
+    pub fn selected_ids(&self) -> Vec<ShapeId> {
+        self.ids.iter().copied().collect()
+    }
+
     pub fn clear(&mut self) {
         self.ids.clear();
+        self.transform_mode = TransformMode::Scale;
+        self.custom_pivot = None;
+    }
+
+    pub fn select(&mut self, id: ShapeId) {
+        self.ids.clear();
+        self.ids.insert(id);
         self.transform_mode = TransformMode::Scale;
         self.custom_pivot = None;
     }
@@ -96,6 +107,10 @@ impl Selection {
 
     pub fn add(&mut self, id: ShapeId) {
         self.ids.insert(id);
+    }
+
+    pub fn remove(&mut self, id: ShapeId) {
+        self.ids.remove(&id);
     }
 
     /// Calculate the pivot point (center of bounding box or custom user pivot).

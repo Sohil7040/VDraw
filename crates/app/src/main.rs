@@ -1,10 +1,4 @@
-mod app;
-mod canvas;
-mod command_palette;
-mod panels;
-pub mod screenshot;
-mod theme;
-mod workspace;
+use app::{app::VDrawApp, screenshot};
 
 fn load_app_icon() -> Option<egui::IconData> {
     let png_bytes = include_bytes!("../../../assets/icons/icon.png");
@@ -53,6 +47,6 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "VDraw",
         native_options,
-        Box::new(|cc| Ok(Box::new(app::VDrawApp::new(cc)))),
+        Box::new(|cc| Ok(Box::new(VDrawApp::new(cc)))),
     )
 }

@@ -2,20 +2,38 @@
 //!
 //! Provides production-ready laser toolpath generation, topological nesting containment
 //! (Inside-Out cut ordering), travel path optimization (Greedy Nearest Neighbor),
-//! material presets, kerf compensation, and G-Code / HPGL-PLT export.
+//! material presets, kerf compensation, raster engraving pipeline, motion profiling
+//! and dialect postprocessors (Generic G-Code, GRBL 1.1f/h, Marlin 2.0, HPGL-PLT).
 
 pub mod config;
+pub mod estimator;
 pub mod generator;
+pub mod kerf;
 pub mod operation;
 pub mod ordering;
+pub mod postprocessor;
+pub mod raster;
+pub mod safety;
 
 pub use config::{LaserProductionConfig, OriginCorner};
+pub use estimator::{trapezoidal_move_time, CamJobEstimation};
 pub use generator::{generate_job_plan, CamJobPlan, Toolpath};
+pub use kerf::{apply_kerf_compensation, KerfError};
 pub use operation::{
-    KerfMode, LaserMode, LayerLaserSettings, MaterialPreset, BUILTIN_MATERIAL_PRESETS,
-    RUIDA_PALETTE,
+    classify_color_to_mode, KerfMode, LaserMode, LayerLaserSettings, MaterialPreset,
+    BUILTIN_MATERIAL_PRESETS, RUIDA_PALETTE,
 };
-pub use ordering::{calculate_containment_depths, optimize_cutting_order, CamContour};
+pub use ordering::{
+    calculate_containment_depths, optimize_cutting_order, CamContour, CamDependencyGraph,
+};
+pub use postprocessor::{
+    post_process, GenericGcodePostProcessor, GrblPostProcessor, HpglPostProcessor, MachineConfig,
+    MachineFlavor, MarlinPostProcessor, PostProcessError, PostProcessor,
+};
+pub use raster::{
+    generate_raster_plan, DitherAlgorithm, RasterImage, RasterJobPlan, RasterScanline, RasterSpan,
+};
+pub use safety::{MachineLimits, SafetyIssue, SafetyReport, SimulatedController};
 
 use core_geom::{Affine2, Point2};
 

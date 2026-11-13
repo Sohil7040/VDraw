@@ -1,0 +1,11 @@
+---
+source: crates/app/tests/integration_and_golden.rs
+expression: manifest
+---
+scenario: snap_node_active
+dimensions: 640x400
+rgba_fnv1a: 0x509996b7c9ff9cb4
+png_len: 49248
+hud_style: filled_dot=true, stroke=Solid
+center_rgba: [230, 159, 0, 255]
+snap_pixels: 52

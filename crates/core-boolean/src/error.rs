@@ -19,6 +19,15 @@ pub enum BooleanError {
     #[error("Offset distance is zero")]
     ZeroOffset,
 
+    #[error("Non-finite coordinate encountered (NaN or Infinity)")]
+    NonFiniteCoordinate,
+
+    #[error("Coordinate {0} mm exceeds maximum supported range (±100,000 mm)")]
+    CoordinateOutOfRange(f64),
+
+    #[error("Degenerate polygon with zero area or collinear points")]
+    DegeneratePolygon,
+
     #[error("Knife cut line did not intersect any shape")]
     NoKnifeIntersection,
 

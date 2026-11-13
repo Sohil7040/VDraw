@@ -4,7 +4,9 @@ use clipper2_rs::{difference_d, inflate_paths_d, EndType, FillRule, JoinType, Pa
 use core_geom::{Point2, Polycurve};
 use std::f64::consts::TAU;
 
-use crate::convert::{paths_d_to_polycurve, polycurve_to_paths_d, DEFAULT_FLATTEN_TOLERANCE};
+use crate::convert::{
+    paths_d_to_polycurve, polycurve_to_paths_d_checked, DEFAULT_FLATTEN_TOLERANCE,
+};
 use crate::error::BooleanError;
 
 /// Erases path areas under an eraser stroke of given radius (in millimeters).
@@ -57,7 +59,7 @@ pub fn erase_shape(
     };
 
     // 2. Perform difference: subject minus eraser
-    let subject = polycurve_to_paths_d(shape, DEFAULT_FLATTEN_TOLERANCE);
+    let subject = polycurve_to_paths_d_checked(shape, DEFAULT_FLATTEN_TOLERANCE)?;
     let erased = difference_d(&subject, &eraser_paths, fill_rule, precision)
         .map_err(|e| BooleanError::ClipperError(format!("{:?}", e)))?;
 

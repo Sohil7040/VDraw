@@ -53,6 +53,54 @@ pub fn fit_curve(points: &[Point2], tolerance: f64) -> Subpath {
         return sub;
     }
 
+    // Detect sharp corners (deflection angle > 45°) to partition the curve into smooth segments
+    let mut corner_indices = vec![0];
+    for i in 1..filtered.len() - 1 {
+        let v1 = filtered[i] - filtered[i - 1];
+        let v2 = filtered[i + 1] - filtered[i];
+        let len1 = v1.length();
+        let len2 = v2.length();
+        if len1 > 1e-4 && len2 > 1e-4 {
+            let cos_angle = v1.dot(v2) / (len1 * len2);
+            if cos_angle < 0.707 {
+                corner_indices.push(i);
+            }
+        }
+    }
+    corner_indices.push(filtered.len() - 1);
+
+    if corner_indices.len() > 2 {
+        // Curve contains one or more sharp corners: fit each smooth segment independently
+        let mut subpath = Subpath::new(false);
+        for s in 0..corner_indices.len() - 1 {
+            let start = corner_indices[s];
+            let end = corner_indices[s + 1];
+            let seg_points = &filtered[start..=end];
+
+            let t_hat1 = compute_left_tangent(seg_points, 0);
+            let t_hat2 = compute_right_tangent(seg_points, seg_points.len() - 1);
+            let mut cubics = Vec::new();
+            fit_cubic_recursive(seg_points, t_hat1, t_hat2, tolerance, &mut cubics);
+
+            let seg_sub = cubics_to_subpath(&cubics);
+            if s == 0 {
+                subpath = seg_sub;
+            } else {
+                // Join at corner with Cusp continuity
+                if let Some(first_node) = seg_sub.nodes.first() {
+                    if let Some(last_node) = subpath.nodes.last_mut() {
+                        last_node.handle_out = first_node.handle_out;
+                        last_node.node_type = NodeType::Cusp;
+                    }
+                }
+                for node in seg_sub.nodes.into_iter().skip(1) {
+                    subpath.push_node(node);
+                }
+            }
+        }
+        return subpath;
+    }
+
     let t_hat1 = compute_left_tangent(&filtered, 0);
     let t_hat2 = compute_right_tangent(&filtered, filtered.len() - 1);
 
@@ -74,13 +122,7 @@ fn fit_cubic_recursive(
     if n_pts <= 2 {
         let p0 = points[0];
         let p3 = points[n_pts - 1];
-        let dist = (p3 - p0).length() / 3.0;
-        cubics.push(CubicBezier::new(
-            p0,
-            p0 + t_hat1 * dist,
-            p3 + t_hat2 * dist,
-            p3,
-        ));
+        cubics.push(CubicBezier::line(p0, p3));
         return;
     }
 
@@ -185,6 +227,7 @@ fn generate_bezier(points: &[Point2], u: &[f64], t_hat1: Point2, t_hat2: Point2)
 }
 
 /// Compute maximum Euclidean error of points relative to the fitted curve.
+/// Also inspects chord spans between sparse samples to detect curve bowing / sag.
 fn compute_max_error(points: &[Point2], u: &[f64], bezier: &CubicBezier) -> (f64, usize) {
     let mut max_dist = 0.0;
     let mut split_point = points.len() / 2;
@@ -195,6 +238,27 @@ fn compute_max_error(points: &[Point2], u: &[f64], bezier: &CubicBezier) -> (f64
         if dist >= max_dist {
             max_dist = dist;
             split_point = i;
+        }
+    }
+
+    // Check intermediate chord points for sparse digitized points
+    for i in 0..points.len() - 1 {
+        let p_a = points[i];
+        let p_b = points[i + 1];
+        let chord_len = (p_b - p_a).length();
+        if chord_len > 0.1 {
+            let u_a = u[i];
+            let u_b = u[i + 1];
+            for frac in [0.25, 0.5, 0.75] {
+                let u_sample = u_a + (u_b - u_a) * frac;
+                let p_expected = p_a.lerp(p_b, frac);
+                let p_curve = bezier.evaluate(u_sample);
+                let dist = (p_curve - p_expected).length();
+                if dist > max_dist {
+                    max_dist = dist;
+                    split_point = if frac < 0.5 && i > 0 { i } else { i + 1 };
+                }
+            }
         }
     }
 
@@ -251,38 +315,63 @@ fn chord_length_parameterize(points: &[Point2]) -> Vec<f64> {
 }
 
 /// Approximate unit tangent at the start point of a segment.
-fn compute_left_tangent(points: &[Point2], end_idx: usize) -> Point2 {
-    let v = points[end_idx + 1] - points[end_idx];
-    if v.length() > 1e-9 {
-        v.normalize()
-    } else {
-        Point2::new(1.0, 0.0)
+fn compute_left_tangent(points: &[Point2], start_idx: usize) -> Point2 {
+    let p0 = points[start_idx];
+    for &p in &points[start_idx + 1..] {
+        let v = p - p0;
+        if v.length() > 1e-4 {
+            return v.normalize();
+        }
     }
+    Point2::new(1.0, 0.0)
 }
 
 /// Approximate unit tangent at the end point of a segment.
 fn compute_right_tangent(points: &[Point2], end_idx: usize) -> Point2 {
-    let v = points[end_idx - 1] - points[end_idx];
-    if v.length() > 1e-9 {
-        v.normalize()
-    } else {
-        Point2::new(-1.0, 0.0)
+    let pn = points[end_idx];
+    for &p in points[..end_idx].iter().rev() {
+        let v = p - pn;
+        if v.length() > 1e-4 {
+            return v.normalize();
+        }
     }
+    Point2::new(-1.0, 0.0)
 }
 
 /// Approximate unit tangent at an interior split point.
 fn compute_center_tangent(points: &[Point2], center_idx: usize) -> Point2 {
-    let v1 = points[center_idx - 1] - points[center_idx];
-    let v2 = points[center_idx] - points[center_idx + 1];
+    let p_c = points[center_idx];
+    let mut v1 = Point2::ZERO;
+    let mut v2 = Point2::ZERO;
+
+    for &p in points[..center_idx].iter().rev() {
+        let v = p_c - p;
+        if v.length() > 1e-4 {
+            v1 = v.normalize();
+            break;
+        }
+    }
+
+    for &p in &points[center_idx + 1..] {
+        let v = p - p_c;
+        if v.length() > 1e-4 {
+            v2 = v.normalize();
+            break;
+        }
+    }
+
     let v = (v1 + v2) * 0.5;
-    if v.length() > 1e-9 {
-        (-v).normalize()
+    if v.length() > 1e-6 {
+        v.normalize()
     } else {
         Point2::new(1.0, 0.0)
     }
 }
 
 /// Convert a list of contiguous `CubicBezier` segments into a `Subpath` of `BezierNode`s.
+///
+/// Automatically classifies node continuity as `Smooth`, `Symmetrical`, or `Cusp`
+/// based on the angular deflection between incoming and outgoing tangent handles.
 fn cubics_to_subpath(cubics: &[CubicBezier]) -> Subpath {
     let mut sub = Subpath::new(false);
     if cubics.is_empty() {
@@ -302,11 +391,32 @@ fn cubics_to_subpath(cubics: &[CubicBezier]) -> Subpath {
     for i in 0..cubics.len() - 1 {
         let prev = &cubics[i];
         let next = &cubics[i + 1];
+        let anchor = prev.p3;
+        let h_in = prev.p2;
+        let h_out = next.p1;
+
+        let v_in = anchor - h_in;
+        let v_out = h_out - anchor;
+
+        let len_in = v_in.length();
+        let len_out = v_out.length();
+
+        let node_type = if len_in > 1e-6 && len_out > 1e-6 {
+            let cos_angle = (v_in.dot(v_out)) / (len_in * len_out);
+            if cos_angle > 0.85 {
+                NodeType::Smooth
+            } else {
+                NodeType::Cusp
+            }
+        } else {
+            NodeType::Cusp
+        };
+
         sub.push_node(BezierNode::with_handles(
-            prev.p3,
-            Some(prev.p2),
-            Some(next.p1),
-            NodeType::Smooth,
+            anchor,
+            Some(h_in),
+            Some(h_out),
+            node_type,
         ));
     }
 

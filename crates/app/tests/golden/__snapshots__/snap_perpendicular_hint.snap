@@ -1,0 +1,11 @@
+---
+source: crates/app/tests/integration_and_golden.rs
+expression: manifest
+---
+scenario: snap_perpendicular_hint
+dimensions: 640x400
+rgba_fnv1a: 0x7e80c97c866f2d67
+png_len: 47028
+hud_style: filled_dot=false, stroke=Dashed, contextual=true
+center_rgba: [46, 83, 106, 255]
+snap_pixels: 568

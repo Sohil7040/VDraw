@@ -24,7 +24,8 @@ impl PartialEq for IndexedShape {
 impl IndexedShape {
     /// Extract snap candidates and bounding envelope from a document shape.
     pub fn from_shape(shape: &Shape) -> Self {
-        let polycurve = shape.to_polycurve();
+        // Evaluate geometric features in world space (with shape's affine transform applied)
+        let polycurve = shape.to_polycurve().transform(&shape.transform);
         let bounds = polycurve.bounds().unwrap_or(Rect::ZERO);
         let center = bounds.center();
         let bbox_points = bounds.nine_points();

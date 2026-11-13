@@ -10,3 +10,9 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
+approx = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "transform_bench"
+harness = false

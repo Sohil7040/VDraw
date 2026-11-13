@@ -6,4 +6,6 @@ edition = "2021"
 [dependencies]
 core-geom = { path = "../core-geom" }
 core-doc = { path = "../core-doc" }
+core-boolean = { path = "../core-boolean" }
 serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }

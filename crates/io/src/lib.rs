@@ -1,18 +1,30 @@
-//! I/O layer for VDraw — Phase 0 stub.
+//! I/O subsystem for VDraw.
+//!
+//! Provides production-ready native `.vdraw` JSON format with schema verification,
+//! standard SVG import/export with path decomposition and CSS styling,
+//! and AutoCAD DXF R12/R14 export for CNC/CAD interoperability.
+
+pub mod dxf_export;
+pub mod error;
+pub mod svg_export;
+pub mod svg_import;
+pub mod vdraw;
+
+pub use dxf_export::{export_dxf, save_dxf};
+pub use error::IoError;
+pub use svg_export::{export_svg, save_svg};
+pub use svg_import::{import_svg, load_svg};
+pub use vdraw::{load_vdraw, save_vdraw};
 
 use anyhow::Result;
 use core_doc::Document;
 
-/// Save a document to a JSON file at `path`.
+/// Save a document to a JSON file at `path` (backward-compatible alias).
 pub fn save_json(doc: &Document, path: &std::path::Path) -> Result<()> {
-    let json = serde_json::to_string_pretty(doc)?;
-    std::fs::write(path, json)?;
-    Ok(())
+    save_vdraw(doc, path).map_err(Into::into)
 }
 
-/// Load a document from a JSON file at `path`.
+/// Load a document from a JSON file at `path` (backward-compatible alias).
 pub fn load_json(path: &std::path::Path) -> Result<Document> {
-    let json = std::fs::read_to_string(path)?;
-    let doc = serde_json::from_str(&json)?;
-    Ok(doc)
+    load_vdraw(path).map_err(Into::into)
 }

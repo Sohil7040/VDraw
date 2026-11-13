@@ -149,102 +149,116 @@ impl CubicBezier {
         self.arc_length(0.0, 1.0)
     }
 
+    pub const TOLERANCE_DISPLAY: f64 = 0.05;
+    pub const TOLERANCE_HIT_TEST: f64 = 0.5;
+    pub const TOLERANCE_BOOLEAN: f64 = 0.02;
+    pub const TOLERANCE_CAM: f64 = 0.01;
+
     /// Find the closest point on the curve to query point `p`.
     ///
     /// Algorithm:
-    /// 1. Coarse search over 16 bisection intervals (depth 4)
-    /// 2. Newton-Raphson refinement on `(B(t) - P) · B'(t) = 0`
-    /// 3. Clamping and boundary checks
+    /// 1. Construct degree-5 1D Bernstein polynomial representing (B(t) - P) · B'(t) = 0.
+    /// 2. Isolate all real roots in [0, 1] via variation-diminishing Bézier subdivision.
+    /// 3. Refine roots using bracketed safeguarded root-finding.
+    /// 4. Evaluate distance at all stationary points and endpoints (t=0, t=1) to guarantee
+    ///    finding the global minimum distance without being trapped in local minima.
     ///
     /// Returns `(t, closest_point, distance)`.
     pub fn closest_point(&self, p: Point2) -> (f64, Point2, f64) {
-        // 1. Initial coarse sampling
-        const SAMPLES: usize = 16;
+        let mut candidates = Vec::with_capacity(7);
+        candidates.push(0.0);
+        candidates.push(1.0);
+
+        // Compute degree-5 Bernstein coefficients of (B(t) - P) · B'(t)
+        let q0 = self.p0 - p;
+        let q1 = self.p1 - p;
+        let q2 = self.p2 - p;
+        let q3 = self.p3 - p;
+
+        let v0 = (self.p1 - self.p0) * 3.0;
+        let v1 = (self.p2 - self.p1) * 3.0;
+        let v2 = (self.p3 - self.p2) * 3.0;
+
+        let c0 = q0.dot(v0);
+        let c1 = 0.6 * q1.dot(v0) + 0.4 * q0.dot(v1);
+        let c2 = 0.3 * q2.dot(v0) + 0.6 * q1.dot(v1) + 0.1 * q0.dot(v2);
+        let c3 = 0.1 * q3.dot(v0) + 0.6 * q2.dot(v1) + 0.3 * q1.dot(v2);
+        let c4 = 0.4 * q3.dot(v1) + 0.6 * q2.dot(v2);
+        let c5 = q3.dot(v2);
+
+        find_bezier_roots_5(
+            self,
+            p,
+            &[c0, c1, c2, c3, c4, c5],
+            0.0,
+            1.0,
+            0,
+            &mut candidates,
+        );
+
         let mut best_t = 0.0;
-        let mut best_dist_sq = self.p0.distance_squared_to(p);
+        let mut best_pt = self.p0;
+        let mut best_dist = self.p0.distance_to(p);
 
-        for i in 1..=SAMPLES {
-            let t = i as f64 / SAMPLES as f64;
-            let pt = self.evaluate(t);
-            let d_sq = pt.distance_squared_to(p);
-            if d_sq < best_dist_sq {
-                best_dist_sq = d_sq;
-                best_t = t;
+        for t in candidates {
+            let t_clamped = t.clamp(0.0, 1.0);
+            let pt = self.evaluate(t_clamped);
+            let dist = pt.distance_to(p);
+            if dist < best_dist {
+                best_dist = dist;
+                best_t = t_clamped;
+                best_pt = pt;
             }
         }
 
-        // 2. Newton-Raphson refinement
-        // f(t) = (B(t) - P) · B'(t)
-        // f'(t) = |B'(t)|^2 + (B(t) - P) · B''(t)
-        let mut t = best_t;
-        for _ in 0..10 {
-            let bt = self.evaluate(t);
-            let diff = bt - p;
-            let d1 = self.derivative(t);
-            let d2 = self.second_derivative(t);
-
-            let f = diff.dot(d1);
-            let f_prime = d1.length_squared() + diff.dot(d2);
-
-            if f_prime.abs() < 1e-14 {
-                break;
-            }
-
-            let delta = f / f_prime;
-            t = (t - delta).clamp(0.0, 1.0);
-
-            if delta.abs() < 1e-10 {
-                break;
-            }
-        }
-
-        // Compare refined t with candidates
-        let pt = self.evaluate(t);
-        let dist = pt.distance_to(p);
-
-        let p0_dist = self.p0.distance_to(p);
-        let p3_dist = self.p3.distance_to(p);
-
-        if p0_dist < dist && p0_dist <= p3_dist {
-            (0.0, self.p0, p0_dist)
-        } else if p3_dist < dist {
-            (1.0, self.p3, p3_dist)
-        } else {
-            (t, pt, dist)
-        }
+        (best_t, best_pt, best_dist)
     }
 
     /// Flatten the curve into line segments within `tolerance` (default 0.02 mm).
     pub fn flatten(&self, tolerance: f64) -> Vec<Point2> {
+        let tolerance = tolerance.max(1e-6);
         let mut points = Vec::new();
         points.push(self.p0);
-        self.flatten_recursive(tolerance, &mut points);
+        self.flatten_recursive(tolerance, 0, &mut points);
         points
     }
 
-    fn flatten_recursive(&self, tolerance: f64, out: &mut Vec<Point2>) {
-        // Flatness check: maximum deviation of p1 and p2 from line (p0 -> p3)
+    fn flatten_recursive(&self, tolerance: f64, depth: usize, out: &mut Vec<Point2>) {
+        const MAX_DEPTH: usize = 16;
         let chord = self.p3 - self.p0;
         let chord_len = chord.length();
 
-        let flat = if chord_len < 1e-9 {
+        let flat = if depth >= MAX_DEPTH {
+            true
+        } else if chord_len < 1e-9 {
             (self.p1 - self.p0)
                 .length()
                 .max((self.p2 - self.p0).length())
                 <= tolerance
         } else {
-            // Distance from point to line: |cross(chord, p - p0)| / |chord|
+            // 1. Perpendicular distance to chord line
             let d1 = chord.cross(self.p1 - self.p0).abs() / chord_len;
             let d2 = chord.cross(self.p2 - self.p0).abs() / chord_len;
-            d1 <= tolerance && d2 <= tolerance
+
+            // 2. Longitudinal check: control points must not overshoot segment bounds
+            let u = chord / chord_len;
+            let t1 = (self.p1 - self.p0).dot(u);
+            let t2 = (self.p2 - self.p0).dot(u);
+
+            let within_segment = t1 >= -tolerance
+                && t1 <= chord_len + tolerance
+                && t2 >= -tolerance
+                && t2 <= chord_len + tolerance;
+
+            d1 <= tolerance && d2 <= tolerance && within_segment
         };
 
         if flat {
             out.push(self.p3);
         } else {
             let (left, right) = self.split_half();
-            left.flatten_recursive(tolerance, out);
-            right.flatten_recursive(tolerance, out);
+            left.flatten_recursive(tolerance, depth + 1, out);
+            right.flatten_recursive(tolerance, depth + 1, out);
         }
     }
 
@@ -295,4 +309,114 @@ impl CubicBezier {
 
         r
     }
+}
+
+// ─── Degree-5 Bézier Clipping Nearest-Point Root Isolation ───────────────────
+
+fn find_bezier_roots_5(
+    curve: &CubicBezier,
+    p: Point2,
+    c: &[f64; 6],
+    t_min: f64,
+    t_max: f64,
+    depth: usize,
+    roots: &mut Vec<f64>,
+) {
+    let sign_changes = count_sign_changes(c);
+    if sign_changes == 0 {
+        return;
+    }
+
+    if sign_changes == 1 || depth >= 12 || (t_max - t_min) < 1e-5 {
+        if let Some(r) = refine_root(curve, p, t_min, t_max) {
+            roots.push(r);
+        }
+        return;
+    }
+
+    // Subdivide 1D degree-5 Bernstein polynomial at midpoint t = 0.5 using de Casteljau
+    let mut left = [0.0; 6];
+    let mut right = [0.0; 6];
+    let mut temp = [[0.0; 6]; 6];
+    temp[0] = *c;
+
+    for i in 1..=5 {
+        for j in 0..=(5 - i) {
+            temp[i][j] = 0.5 * (temp[i - 1][j] + temp[i - 1][j + 1]);
+        }
+    }
+
+    for i in 0..=5 {
+        left[i] = temp[i][0];
+        right[5 - i] = temp[i][5 - i];
+    }
+
+    let t_mid = 0.5 * (t_min + t_max);
+    find_bezier_roots_5(curve, p, &left, t_min, t_mid, depth + 1, roots);
+    find_bezier_roots_5(curve, p, &right, t_mid, t_max, depth + 1, roots);
+}
+
+fn count_sign_changes(c: &[f64; 6]) -> usize {
+    let mut changes = 0;
+    let mut prev_sign = 0;
+    for &val in c {
+        let sign = if val > 1e-12 {
+            1
+        } else if val < -1e-12 {
+            -1
+        } else {
+            0
+        };
+        if sign != 0 {
+            if prev_sign != 0 && sign != prev_sign {
+                changes += 1;
+            }
+            prev_sign = sign;
+        }
+    }
+    changes
+}
+
+fn eval_f(curve: &CubicBezier, p: Point2, t: f64) -> f64 {
+    let bt = curve.evaluate(t);
+    let d1 = curve.derivative(t);
+    (bt - p).dot(d1)
+}
+
+fn refine_root(curve: &CubicBezier, p: Point2, mut a: f64, mut b: f64) -> Option<f64> {
+    let mut fa = eval_f(curve, p, a);
+    let fb = eval_f(curve, p, b);
+
+    if fa.abs() < 1e-12 {
+        return Some(a);
+    }
+    if fb.abs() < 1e-12 {
+        return Some(b);
+    }
+    if fa * fb > 0.0 {
+        let mid = 0.5 * (a + b);
+        let fmid = eval_f(curve, p, mid);
+        if fmid.abs() < fa.abs().min(fb.abs()) {
+            return Some(mid);
+        }
+        return None;
+    }
+
+    for _ in 0..30 {
+        if (b - a).abs() < 1e-8 {
+            break;
+        }
+        let mid = 0.5 * (a + b);
+        let fmid = eval_f(curve, p, mid);
+        if fmid.abs() < 1e-12 {
+            return Some(mid);
+        }
+        if fa * fmid < 0.0 {
+            b = mid;
+        } else {
+            a = mid;
+            fa = fmid;
+        }
+    }
+    Some(0.5 * (a + b))
 }

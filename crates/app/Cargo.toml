@@ -3,6 +3,10 @@ name = "app"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "app"
+path = "src/lib.rs"
+
 [[bin]]
 name = "vdraw"
 path = "src/main.rs"
@@ -14,6 +18,7 @@ core-snap = { path = "../core-snap" }
 core-tools = { path = "../core-tools" }
 core-cam = { path = "../core-cam" }
 core-boolean = { path = "../core-boolean" }
+io = { path = "../io" }
 eframe = { workspace = true }
 egui = { workspace = true }
 egui_extras = { workspace = true }
@@ -22,3 +27,6 @@ log = { workspace = true }
 env_logger = { workspace = true }
 anyhow = { workspace = true }
 tiny-skia = { workspace = true }
+
+[dev-dependencies]
+insta = { workspace = true }

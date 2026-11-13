@@ -769,3 +769,121 @@ impl SnapSolver {
         }
     }
 }
+
+impl crate::contracts::SnapProvider for SnapSolver {
+    fn candidates(&self, ctx: &crate::contracts::SnapCtx<'_>) -> Vec<crate::contracts::SnapPoint> {
+        let mut out = Vec::new();
+        self.collect_candidates(ctx, &mut out);
+        out
+    }
+
+    fn collect_candidates(
+        &self,
+        ctx: &crate::contracts::SnapCtx<'_>,
+        out: &mut Vec<crate::contracts::SnapPoint>,
+    ) {
+        use crate::contracts::{SnapKind, SnapPoint};
+        use crate::intersection::for_each_polycurve_guideline_intersection;
+        use crate::providers::{
+            collect_index_intersections, collect_shape_center, collect_shape_midpoints,
+            collect_shape_nodes_and_endpoints, collect_shape_quadrants, QueryWindow,
+        };
+
+        if !self.config.enabled {
+            return;
+        }
+        let Some(q) = QueryWindow::from_ctx(ctx) else {
+            return;
+        };
+
+        for shape in self.spatial_index.locate_in_envelope(&q.search_box) {
+            if self.config.snap_to_nodes {
+                collect_shape_nodes_and_endpoints(shape, &q, out);
+            }
+            if self.config.snap_to_midpoints {
+                collect_shape_midpoints(shape, &q, out);
+            }
+            if self.config.snap_to_centers {
+                collect_shape_center(shape, &q, out);
+            }
+            if self.config.snap_to_quadrants {
+                collect_shape_quadrants(shape, &q, out);
+            }
+        }
+
+        if self.config.snap_to_intersections {
+            collect_index_intersections(&self.spatial_index, &q, out);
+
+            if self.config.snap_to_guidelines {
+                for guideline in &self.guidelines {
+                    for shape in self.spatial_index.locate_in_envelope(&q.search_box) {
+                        for_each_polycurve_guideline_intersection(
+                            &shape.polycurve,
+                            guideline,
+                            &q.search_box,
+                            |pt| {
+                                if pt.distance_squared_to(q.cursor_world) <= q.threshold_sq {
+                                    out.push(SnapPoint::new(
+                                        pt,
+                                        SnapKind::Intersection,
+                                        shape.shape_id,
+                                    ));
+                                }
+                            },
+                        );
+                    }
+                }
+
+                if self.guidelines.len() >= 2 {
+                    for i in 0..self.guidelines.len() {
+                        for j in (i + 1)..self.guidelines.len() {
+                            if let Some(pt) = self.guidelines[i].intersect(&self.guidelines[j]) {
+                                if pt.distance_squared_to(q.cursor_world) <= q.threshold_sq {
+                                    out.push(SnapPoint::new(
+                                        pt,
+                                        SnapKind::Intersection,
+                                        ShapeId::NONE,
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if self.config.snap_to_grid && self.config.grid.enabled {
+            if let Some((pt, _)) = self
+                .config
+                .grid
+                .snap_point(q.cursor_world, q.threshold_world)
+            {
+                out.push(SnapPoint::new(pt, SnapKind::Grid, ShapeId::NONE));
+            }
+        }
+    }
+}
+
+pub(crate) fn compute_delta_impl(
+    handle: crate::contracts::HandleMode,
+    source_anchor: Point2,
+    target: &crate::contracts::SnapPoint,
+) -> Point2 {
+    use crate::contracts::HandleMode;
+
+    if !source_anchor.is_finite() || !target.position.is_finite() {
+        return Point2::ZERO;
+    }
+
+    let delta = match handle {
+        HandleMode::Node | HandleMode::Center | HandleMode::Insertion | HandleMode::Edge => {
+            target.position - source_anchor
+        }
+    };
+
+    if delta.is_finite() {
+        delta
+    } else {
+        Point2::ZERO
+    }
+}

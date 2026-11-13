@@ -17,6 +17,11 @@ impl Point2 {
     }
 
     #[inline]
+    pub fn is_finite(self) -> bool {
+        self.x.is_finite() && self.y.is_finite()
+    }
+
+    #[inline]
     pub fn distance_to(self, other: Self) -> f64 {
         (self - other).length()
     }

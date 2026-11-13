@@ -8,9 +8,9 @@ core-geom = { path = "../core-geom" }
 core-doc = { path = "../core-doc" }
 kurbo = { workspace = true }
 clipper2-rs = { workspace = true }
-cavalier_contours = { workspace = true }
 ttf-parser = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
+approx = { workspace = true }

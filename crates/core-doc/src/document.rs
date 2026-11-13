@@ -2,8 +2,62 @@ use crate::guideline::{Guideline, GuidelineId, GuidelineOrientation};
 use crate::selection::Selection;
 use crate::shape::{Shape, ShapeId};
 use crate::units::Unit;
+use crate::validation::ValidationReport;
 use core_geom::Rect;
 use serde::{Deserialize, Serialize};
+
+/// Standard page size presets for vector design, CAD drafting, and laser cutting.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum PagePreset {
+    #[default]
+    A4,
+    A3,
+    A2,
+    Letter,
+    Tabloid,
+    LaserBedSmall,  // 300 x 200 mm (K40 class)
+    LaserBedMedium, // 600 x 400 mm
+    LaserBedLarge,  // 900 x 600 mm
+    Custom,
+}
+
+impl PagePreset {
+    pub fn dimensions_mm(self) -> Option<(f64, f64)> {
+        match self {
+            PagePreset::A4 => Some((210.0, 297.0)),
+            PagePreset::A3 => Some((297.0, 420.0)),
+            PagePreset::A2 => Some((420.0, 594.0)),
+            PagePreset::Letter => Some((215.9, 279.4)),
+            PagePreset::Tabloid => Some((279.4, 431.8)),
+            PagePreset::LaserBedSmall => Some((300.0, 200.0)),
+            PagePreset::LaserBedMedium => Some((600.0, 400.0)),
+            PagePreset::LaserBedLarge => Some((900.0, 600.0)),
+            PagePreset::Custom => None,
+        }
+    }
+}
+
+/// Persistent metadata for a document.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DocumentMetadata {
+    pub author: String,
+    pub description: String,
+    pub schema_version: u32,
+    pub created_timestamp_secs: u64,
+    pub modified_timestamp_secs: u64,
+}
+
+impl Default for DocumentMetadata {
+    fn default() -> Self {
+        Self {
+            author: String::new(),
+            description: String::new(),
+            schema_version: crate::validation::CURRENT_SCHEMA_VERSION,
+            created_timestamp_secs: 0,
+            modified_timestamp_secs: 0,
+        }
+    }
+}
 
 /// A layer holding a list of shapes.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -117,17 +171,20 @@ impl Page {
     }
 }
 
-/// A vector document containing pages, shapes, layers, selection, and unit settings.
+/// A vector document containing pages, shapes, layers, metadata, and unit settings.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Document {
     pub title: String,
     pub unit: Unit,
     pub pages: Vec<Page>,
     pub active_page: usize,
+    /// Transient editor selection state (skipped during document serialization).
+    #[serde(skip, default)]
     pub selection: Selection,
     pub next_shape_id: u64,
     pub guidelines: Vec<Guideline>,
     pub next_guideline_id: u64,
+    pub metadata: DocumentMetadata,
 }
 
 impl Default for Document {
@@ -141,6 +198,7 @@ impl Default for Document {
             next_shape_id: 1,
             guidelines: Vec::new(),
             next_guideline_id: 1,
+            metadata: DocumentMetadata::default(),
         }
     }
 }
@@ -151,6 +209,11 @@ impl Document {
             title: title.into(),
             ..Default::default()
         }
+    }
+
+    /// Performs strict validation of document integrity, non-finiteness, and geometry.
+    pub fn validate(&self) -> ValidationReport {
+        crate::validation::validate_document(self)
     }
 
     pub fn allocate_id(&mut self) -> ShapeId {

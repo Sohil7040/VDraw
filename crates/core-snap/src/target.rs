@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 pub enum SnapTargetKind {
     /// Exact anchor node on a path or polygon vertex (Priority: 100).
     Node = 100,
+    /// Terminal vertex of an open path or curve segment (Priority: 95).
+    Endpoint = 95,
     /// Intersection of two curves, segments, or guidelines (Priority: 90).
     Intersection = 90,
     /// Midpoint of a segment or bounding box edge (Priority: 80).
@@ -43,6 +45,7 @@ impl SnapTargetKind {
     pub fn label_name(&self) -> &'static str {
         match self {
             Self::Node => "Node",
+            Self::Endpoint => "Endpoint",
             Self::Intersection => "Intersection",
             Self::Midpoint => "Midpoint",
             Self::Center => "Center",

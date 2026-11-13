@@ -29,6 +29,15 @@ impl Affine2 {
         translation: [0.0, 0.0],
     };
 
+    pub fn is_identity(&self) -> bool {
+        (self.matrix[0] - 1.0).abs() < 1e-12
+            && self.matrix[1].abs() < 1e-12
+            && self.matrix[2].abs() < 1e-12
+            && (self.matrix[3] - 1.0).abs() < 1e-12
+            && self.translation[0].abs() < 1e-12
+            && self.translation[1].abs() < 1e-12
+    }
+
     pub fn new(a: f64, b: f64, c: f64, d: f64, tx: f64, ty: f64) -> Self {
         Self {
             matrix: [a, b, c, d],
@@ -84,6 +93,76 @@ impl Affine2 {
         Self::translate(pivot) * Self::skew(radians_x, radians_y) * Self::translate(-pivot)
     }
 
+    /// Builds and validates a counter-clockwise rotation matrix around `pivot` by `angle_rad`.
+    pub fn try_rotate_around(
+        pivot: Point2,
+        angle_rad: f64,
+    ) -> Result<Self, crate::contracts::TransformError> {
+        if !pivot.is_finite() || !angle_rad.is_finite() {
+            return Err(crate::contracts::TransformError::NonFiniteInput);
+        }
+        let m = Self::rotate_around(angle_rad, pivot);
+        Self::validate_non_singular(m)
+    }
+
+    /// Builds and validates a reflection matrix across the 2D line `(line_point, line_dir)`.
+    pub fn try_mirror(
+        line_point: Point2,
+        line_dir: Point2,
+    ) -> Result<Self, crate::contracts::TransformError> {
+        if !line_point.is_finite() || !line_dir.is_finite() {
+            return Err(crate::contracts::TransformError::NonFiniteInput);
+        }
+        let len = line_dir.length();
+        if !len.is_finite() || len <= crate::contracts::SINGULAR_DET_EPSILON {
+            return Err(crate::contracts::TransformError::DegenerateLineDirection);
+        }
+        let ux = line_dir.x / len;
+        let uy = line_dir.y / len;
+        let reflect_origin = Self::new(
+            ux * ux - uy * uy,
+            2.0 * ux * uy,
+            2.0 * ux * uy,
+            uy * uy - ux * ux,
+            0.0,
+            0.0,
+        );
+        let m = Self::translate(line_point) * reflect_origin * Self::translate(-line_point);
+        Self::validate_non_singular(m)
+    }
+
+    /// Builds and validates a non-uniform scaling matrix around `pivot`.
+    pub fn try_scale_around(
+        pivot: Point2,
+        factor: (f64, f64),
+    ) -> Result<Self, crate::contracts::TransformError> {
+        if !pivot.is_finite() || !factor.0.is_finite() || !factor.1.is_finite() {
+            return Err(crate::contracts::TransformError::NonFiniteInput);
+        }
+        if factor.0 == 0.0 || factor.1 == 0.0 {
+            return Err(crate::contracts::TransformError::ZeroScaleFactor);
+        }
+        let m = Self::scale_around(factor.0, factor.1, pivot);
+        Self::validate_non_singular(m)
+    }
+
+    #[inline]
+    fn validate_non_singular(m: Self) -> Result<Self, crate::contracts::TransformError> {
+        if !m.is_finite() {
+            return Err(crate::contracts::TransformError::NonFiniteInput);
+        }
+        let det = m.determinant();
+        if !det.is_finite() || det.abs() < crate::contracts::SINGULAR_DET_EPSILON {
+            return Err(crate::contracts::TransformError::SingularTransform);
+        }
+        Ok(m)
+    }
+
+    #[inline]
+    pub fn is_finite(&self) -> bool {
+        self.matrix.iter().all(|x| x.is_finite()) && self.translation.iter().all(|x| x.is_finite())
+    }
+
     #[inline]
     pub fn determinant(&self) -> f64 {
         let [a, b, c, d] = self.matrix;
@@ -92,7 +171,7 @@ impl Affine2 {
 
     pub fn inverse(&self) -> Option<Self> {
         let det = self.determinant();
-        if det.abs() < 1e-15 {
+        if !det.is_finite() || det.abs() < 1e-15 {
             return None;
         }
         let inv_det = 1.0 / det;
@@ -107,10 +186,15 @@ impl Affine2 {
         let inv_tx = (c * ty - d * tx) * inv_det;
         let inv_ty = (b * tx - a * ty) * inv_det;
 
-        Some(Self {
+        let inv = Self {
             matrix: [inv_a, inv_b, inv_c, inv_d],
             translation: [inv_tx, inv_ty],
-        })
+        };
+        if inv.is_finite() {
+            Some(inv)
+        } else {
+            None
+        }
     }
 
     #[inline]

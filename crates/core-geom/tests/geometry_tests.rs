@@ -327,3 +327,131 @@ fn test_polygon_and_star_and_spiral() {
     assert!(!spiral.subpaths[0].closed);
     assert!(spiral.length() > 60.0);
 }
+
+#[test]
+fn test_affine_singular_and_nan_handling() {
+    // 1. Singular matrix (det = 0)
+    let singular = Affine2::new(2.0, 4.0, 1.0, 2.0, 10.0, 20.0);
+    assert_eq!(singular.determinant(), 0.0);
+    assert!(singular.inverse().is_none());
+
+    // 2. Matrix with NaN determinant
+    let nan_mat = Affine2::new(f64::NAN, 0.0, 0.0, 1.0, 0.0, 0.0);
+    assert!(!nan_mat.is_finite());
+    assert!(nan_mat.inverse().is_none());
+
+    // 3. Matrix with Infinite translation
+    let inf_mat = Affine2::new(1.0, 0.0, 0.0, 1.0, f64::INFINITY, 0.0);
+    assert!(!inf_mat.is_finite());
+    assert!(inf_mat.inverse().is_none());
+
+    // 4. Skew and non-uniform scaling
+    let skew = Affine2::skew(0.2, 0.1);
+    assert!(skew.is_finite());
+    let inv_skew = skew.inverse().expect("Invertible skew");
+    let pt = Point2::new(15.0, 25.0);
+    let roundtrip = inv_skew.transform_point(skew.transform_point(pt));
+    assert!((roundtrip.x - pt.x).abs() < 1e-10);
+    assert!((roundtrip.y - pt.y).abs() < 1e-10);
+}
+
+#[test]
+fn test_bezier_closest_point_difficult_cases() {
+    // S-curve with inflection and multiple stationary points
+    let s_curve = CubicBezier::new(
+        Point2::new(0.0, 0.0),
+        Point2::new(0.0, 50.0),
+        Point2::new(100.0, -50.0),
+        Point2::new(100.0, 0.0),
+    );
+
+    // Query point near the first loop
+    let q1 = Point2::new(10.0, 40.0);
+    let (t1, pt1, dist1) = s_curve.closest_point(q1);
+    assert!(t1 > 0.0 && t1 < 0.5);
+    let direct_d1 = pt1.distance_to(q1);
+    assert!((dist1 - direct_d1).abs() < 1e-10);
+
+    // Check that endpoints t=0 and t=1 are properly compared
+    let q_start = Point2::new(-10.0, -10.0);
+    let (t_start, pt_start, dist_start) = s_curve.closest_point(q_start);
+    assert_eq!(t_start, 0.0);
+    assert_eq!(pt_start, s_curve.p0);
+    assert!((dist_start - s_curve.p0.distance_to(q_start)).abs() < 1e-10);
+}
+
+#[test]
+fn test_flatten_collinear_overshoot_safeguard() {
+    // Collinear Bézier where p1 and p2 shoot out in opposite directions along chord line:
+    // Infinite line cross-product is 0, but the curve loops out to -10 and +30!
+    let overshoot = CubicBezier::new(
+        Point2::new(0.0, 0.0),
+        Point2::new(30.0, 0.0),
+        Point2::new(-20.0, 0.0),
+        Point2::new(10.0, 0.0),
+    );
+
+    let tolerance = 0.02;
+    let polyline = overshoot.flatten(tolerance);
+
+    // Under the old bug, polyline was only 2 points! With the fix, it must subdivide:
+    assert!(
+        polyline.len() > 2,
+        "Collinear overshooting curve must subdivide and not falsely report flat"
+    );
+
+    // Verify all points remain bounded and start/end match
+    assert_eq!(polyline.first().copied(), Some(overshoot.p0));
+    assert_eq!(polyline.last().copied(), Some(overshoot.p3));
+}
+
+#[test]
+fn test_rectangle_chamfer_and_scallop() {
+    let rect = Rect::new(0.0, 0.0, 100.0, 80.0);
+    let r = 10.0;
+
+    // Chamfer
+    let chamfer = Polycurve::rectangle(rect, r, core_geom::CornerStyle::Chamfer);
+    assert_eq!(chamfer.subpaths.len(), 1);
+    assert_eq!(chamfer.subpaths[0].nodes.len(), 8);
+    for node in &chamfer.subpaths[0].nodes {
+        assert_eq!(node.node_type, NodeType::Cusp);
+        assert!(node.handle_in.is_none());
+        assert!(node.handle_out.is_none());
+    }
+
+    // Scallop (inverted rounded corners)
+    let scallop = Polycurve::rectangle(rect, r, core_geom::CornerStyle::Scallop);
+    assert_eq!(scallop.subpaths.len(), 1);
+    assert_eq!(scallop.subpaths[0].nodes.len(), 8);
+    for node in &scallop.subpaths[0].nodes {
+        assert_eq!(node.node_type, NodeType::Smooth);
+    }
+}
+
+#[test]
+fn test_curve_fit_sharp_corner_preservation() {
+    // L-shape with a sharp 90-degree corner at (50, 0)
+    let mut l_shape = Vec::new();
+    for x in (0..=50).step_by(5) {
+        l_shape.push(Point2::new(x as f64, 0.0));
+    }
+    for y in (5..=50).step_by(5) {
+        l_shape.push(Point2::new(50.0, y as f64));
+    }
+
+    let subpath = core_geom::fit_curve(&l_shape, 1.0);
+    assert!(!subpath.is_empty());
+
+    // The intermediate node near (50, 0) should be classified as Cusp due to 90° deflection
+    let has_cusp = subpath
+        .nodes
+        .iter()
+        .skip(1)
+        .take(subpath.nodes.len().saturating_sub(2))
+        .any(|n| n.node_type == NodeType::Cusp);
+    assert!(
+        has_cusp,
+        "Sharp 90-degree corner must be preserved with a Cusp node"
+    );
+}

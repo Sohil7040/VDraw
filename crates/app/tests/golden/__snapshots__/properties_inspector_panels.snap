@@ -1,0 +1,10 @@
+---
+source: crates/app/tests/integration_and_golden.rs
+expression: manifest
+---
+scenario: properties_inspector_panels
+dimensions: 640x400
+rgba_fnv1a: 0x842eca08d3563399
+png_len: 55232
+inspector_card_rgba: [22, 24, 29, 255]
+sel_pixels: 4228

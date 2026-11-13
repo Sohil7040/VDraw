@@ -8,4 +8,5 @@ core-geom = { path = "../core-geom" }
 core-doc = { path = "../core-doc" }
 serde = { workspace = true }
 serde_json = { workspace = true }
+thiserror = { workspace = true }
 anyhow = { workspace = true }

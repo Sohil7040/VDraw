@@ -1,47 +1,58 @@
-//! Top property bar — context-sensitive tool and selection options.
+//! Context-sensitive tool property bar (all Boolean/Contour actions route via [`AppCommand`]).
 
 use crate::panels::toast::ToastManager;
-use crate::theme;
-use core_boolean::{apply_boolean_to_document, apply_contour_to_document, BooleanOp, ContourJoin};
+use crate::tokens::{SpacingTokens, ThemeTokens};
+use core_boolean::{BooleanOp, ContourJoin};
 use core_doc::{Document, ModifyShapeKindCommand, ShapeKind, UndoStack};
 use core_geom::NodeType;
-use core_tools::{KnifeMode, ToolId, ToolManager};
+use core_tools::{AppCommand, KnifeMode, ToolId, ToolManager};
 
-/// Show the property bar at the top of the workspace.
+/// Show the context property bar beneath the top command bar, returning any [`AppCommand`]s triggered.
 pub fn show_prop_bar(
     ui: &mut egui::Ui,
     doc: &mut Document,
     undo: &mut UndoStack,
     tool_mgr: &mut ToolManager,
     toast: &mut ToastManager,
-) {
-    ui.set_height(theme::PROPBAR_HEIGHT);
+) -> Vec<AppCommand> {
+    let tokens = ThemeTokens::from_ctx(ui.ctx());
+    let c = &tokens.color;
+    let mut commands = Vec::new();
+
+    ui.set_height(SpacingTokens::COMMANDBAR_HEIGHT - 4.0);
     ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-        // ── 1. Tool-Specific Context Options ─────────────────────────────────
         match tool_mgr.active_id() {
             ToolId::Shape => {
-                ui.label(
-                    egui::RichText::new("☩ Node Tool")
-                        .color(theme::ACCENT)
-                        .strong(),
-                );
+                ui.label(egui::RichText::new("☩ Node Tool").color(c.accent).strong());
                 ui.separator();
 
                 if let Some(shape_tool) = tool_mgr.shape_tool_mut() {
                     let sel_count = shape_tool.selected_nodes.len();
                     if sel_count > 0 {
                         ui.label(
-                            egui::RichText::new(format!("{} node(s)", sel_count))
-                                .color(theme::TEXT_PRIMARY)
+                            egui::RichText::new(format!("{sel_count} node(s)"))
+                                .color(c.on_surface)
                                 .small(),
                         );
-                        if ui.button("Cusp").on_hover_text("Independent handle angles and lengths").clicked() {
+                        if ui
+                            .button("Cusp")
+                            .on_hover_text("Independent handle angles and lengths")
+                            .clicked()
+                        {
                             shape_tool.set_selected_nodes_type(doc, undo, NodeType::Cusp);
                         }
-                        if ui.button("Smooth").on_hover_text("Collinear G1 continuous handles").clicked() {
+                        if ui
+                            .button("Smooth")
+                            .on_hover_text("Collinear G1 continuous handles")
+                            .clicked()
+                        {
                             shape_tool.set_selected_nodes_type(doc, undo, NodeType::Smooth);
                         }
-                        if ui.button("Symmetrical").on_hover_text("Collinear and equal length handles").clicked() {
+                        if ui
+                            .button("Symmetrical")
+                            .on_hover_text("Collinear and equal length handles")
+                            .clicked()
+                        {
                             shape_tool.set_selected_nodes_type(doc, undo, NodeType::Symmetrical);
                         }
                         ui.separator();
@@ -50,20 +61,18 @@ pub fn show_prop_bar(
                         }
                     } else {
                         ui.label(
-                            egui::RichText::new("Click anchor to edit handles  ·  Double-click curve to insert node")
-                                .color(theme::TEXT_SECONDARY)
-                                .small()
-                                .italics(),
+                            egui::RichText::new(
+                                "Click anchor to edit handles  ·  Double-click curve to insert node",
+                            )
+                            .color(c.on_surface_muted)
+                            .small()
+                            .italics(),
                         );
                     }
                 }
             }
             ToolId::Knife => {
-                ui.label(
-                    egui::RichText::new("⚔ Knife Tool")
-                        .color(theme::ACCENT)
-                        .strong(),
-                );
+                ui.label(egui::RichText::new("⚔ Knife Tool").color(c.accent).strong());
                 ui.separator();
                 if let Some(knife) = tool_mgr.knife_tool_mut() {
                     ui.selectable_value(&mut knife.mode, KnifeMode::Straight, "Straight Cut");
@@ -73,11 +82,7 @@ pub fn show_prop_bar(
                 }
             }
             ToolId::Eraser => {
-                ui.label(
-                    egui::RichText::new("⌫ Eraser Tool")
-                        .color(theme::ACCENT)
-                        .strong(),
-                );
+                ui.label(egui::RichText::new("⌫ Eraser Tool").color(c.accent).strong());
                 ui.separator();
                 if let Some(eraser) = tool_mgr.eraser_tool_mut() {
                     ui.label("Radius:");
@@ -92,20 +97,22 @@ pub fn show_prop_bar(
             ToolId::VirtualSegmentDelete => {
                 ui.label(
                     egui::RichText::new("✂ Virtual Segment Delete")
-                        .color(theme::ACCENT)
+                        .color(c.accent)
                         .strong(),
                 );
                 ui.separator();
                 ui.label(
-                    egui::RichText::new("Click any path segment between intersections to auto-trim")
-                        .color(theme::TEXT_SECONDARY)
-                        .small(),
+                    egui::RichText::new(
+                        "Click any path segment between intersections to auto-trim",
+                    )
+                    .color(c.on_surface_muted)
+                    .small(),
                 );
             }
             ToolId::Text => {
                 ui.label(
                     egui::RichText::new("T Text Outlines")
-                        .color(theme::ACCENT)
+                        .color(c.accent)
                         .strong(),
                 );
                 ui.separator();
@@ -123,11 +130,7 @@ pub fn show_prop_bar(
                 }
             }
             ToolId::Polygon => {
-                ui.label(
-                    egui::RichText::new("⬡ Polygon")
-                        .color(theme::ACCENT)
-                        .strong(),
-                );
+                ui.label(egui::RichText::new("⬡ Polygon").color(c.accent).strong());
                 ui.separator();
                 if let Some(poly_tool) = tool_mgr.polygon_tool_mut() {
                     ui.label("Sides:");
@@ -135,11 +138,7 @@ pub fn show_prop_bar(
                 }
             }
             ToolId::Star => {
-                ui.label(
-                    egui::RichText::new("★ Star")
-                        .color(theme::ACCENT)
-                        .strong(),
-                );
+                ui.label(egui::RichText::new("★ Star").color(c.accent).strong());
                 ui.separator();
                 if let Some(star_tool) = tool_mgr.star_tool_mut() {
                     ui.label("Points:");
@@ -156,11 +155,7 @@ pub fn show_prop_bar(
                 }
             }
             ToolId::Spiral => {
-                ui.label(
-                    egui::RichText::new("🌀 Spiral")
-                        .color(theme::ACCENT)
-                        .strong(),
-                );
+                ui.label(egui::RichText::new("🌀 Spiral").color(c.accent).strong());
                 ui.separator();
                 if let Some(spiral_tool) = tool_mgr.spiral_tool_mut() {
                     ui.label("Turns:");
@@ -172,11 +167,7 @@ pub fn show_prop_bar(
                 }
             }
             ToolId::Freehand => {
-                ui.label(
-                    egui::RichText::new("〜 Freehand")
-                        .color(theme::ACCENT)
-                        .strong(),
-                );
+                ui.label(egui::RichText::new("〜 Freehand").color(c.accent).strong());
                 ui.separator();
                 if let Some(fh_tool) = tool_mgr.freehand_tool_mut() {
                     ui.label("Tolerance:");
@@ -191,7 +182,7 @@ pub fn show_prop_bar(
             _ => {
                 ui.label(
                     egui::RichText::new(tool_mgr.active_id().label())
-                        .color(theme::TEXT_PRIMARY)
+                        .color(c.on_surface)
                         .strong(),
                 );
             }
@@ -199,28 +190,27 @@ pub fn show_prop_bar(
 
         ui.separator();
 
-        // ── 2. Selection Geometry & Quick Boolean Actions ───────────────────
         let sel_count = doc.selection.len();
         if sel_count == 0 {
             ui.label(
                 egui::RichText::new(format!(
-                    "Page: A4 ({:.1} × {:.1} mm)  ·  Units: {}",
+                    "Page: ({:.1} × {:.1} mm)  ·  Units: {}",
                     doc.active_page().map(|p| p.width_mm).unwrap_or(210.0),
                     doc.active_page().map(|p| p.height_mm).unwrap_or(297.0),
                     doc.unit.label()
                 ))
-                .color(theme::TEXT_SECONDARY)
+                .color(c.on_surface_muted)
                 .small(),
             );
         } else {
             let label = if sel_count == 1 {
                 "1 selected".to_string()
             } else {
-                format!("{} selected", sel_count)
+                format!("{sel_count} selected")
             };
             ui.label(
                 egui::RichText::new(label)
-                    .color(theme::TEXT_SECONDARY)
+                    .color(c.on_surface_muted)
                     .small(),
             );
 
@@ -228,7 +218,7 @@ pub fn show_prop_bar(
                 ui.separator();
                 ui.label(
                     egui::RichText::new("⊕ Center:")
-                        .color(egui::Color32::from_rgb(6, 182, 212))
+                        .color(c.snap_center)
                         .small(),
                 );
                 ui.monospace(format!("X: {:>6.1}", bounds.center().x));
@@ -238,7 +228,6 @@ pub fn show_prop_bar(
                 ui.monospace(format!("H: {:>6.1}", bounds.height()));
             }
 
-            // Quick Boolean Actions Bar (when 2+ shapes selected)
             if sel_count >= 2 {
                 ui.separator();
                 if ui
@@ -246,54 +235,38 @@ pub fn show_prop_bar(
                     .on_hover_text("Weld overlapping shapes into one unified path")
                     .clicked()
                 {
-                    match apply_boolean_to_document(doc, undo, BooleanOp::Weld, true) {
-                        Ok(msg) => toast.show(format!("✓ {}", msg)),
-                        Err(e) => toast.show(format!("⚠ Weld error: {}", e)),
-                    }
+                    commands.push(AppCommand::BooleanOp(BooleanOp::Weld));
                 }
                 if ui
                     .button("⊟ Trim")
                     .on_hover_text("Subtract front shapes from the back shape")
                     .clicked()
                 {
-                    match apply_boolean_to_document(doc, undo, BooleanOp::Trim, true) {
-                        Ok(msg) => toast.show(format!("✓ {}", msg)),
-                        Err(e) => toast.show(format!("⚠ Trim error: {}", e)),
-                    }
+                    commands.push(AppCommand::BooleanOp(BooleanOp::Trim));
                 }
                 if ui
                     .button("⊠ Intersect")
                     .on_hover_text("Keep only overlapping intersection region")
                     .clicked()
                 {
-                    match apply_boolean_to_document(doc, undo, BooleanOp::Intersect, true) {
-                        Ok(msg) => toast.show(format!("✓ {}", msg)),
-                        Err(e) => toast.show(format!("⚠ Intersect error: {}", e)),
-                    }
+                    commands.push(AppCommand::BooleanOp(BooleanOp::Intersect));
                 }
                 if ui
                     .button("⊞̷ Exclude")
                     .on_hover_text("XOR: Exclude overlapping regions")
                     .clicked()
                 {
-                    match apply_boolean_to_document(doc, undo, BooleanOp::Exclude, true) {
-                        Ok(msg) => toast.show(format!("✓ {}", msg)),
-                        Err(e) => toast.show(format!("⚠ Exclude error: {}", e)),
-                    }
+                    commands.push(AppCommand::BooleanOp(BooleanOp::Exclude));
                 }
                 if ui
                     .button("⬚ Boundary")
                     .on_hover_text("Create outer perimeter silhouette")
                     .clicked()
                 {
-                    match apply_boolean_to_document(doc, undo, BooleanOp::CreateBoundary, true) {
-                        Ok(msg) => toast.show(format!("✓ {}", msg)),
-                        Err(e) => toast.show(format!("⚠ Boundary error: {}", e)),
-                    }
+                    commands.push(AppCommand::BooleanOp(BooleanOp::CreateBoundary));
                 }
             }
 
-            // Quick Parallel Contour Offset (when 1+ shape selected)
             if sel_count >= 1 {
                 ui.separator();
                 if ui
@@ -301,23 +274,17 @@ pub fn show_prop_bar(
                     .on_hover_text("Generate a +3.0 mm parallel laser kerf contour")
                     .clicked()
                 {
-                    match apply_contour_to_document(doc, undo, 3.0, ContourJoin::Round) {
-                        Ok(msg) => toast.show(format!("✓ {}", msg)),
-                        Err(e) => toast.show(format!("⚠ Contour error: {}", e)),
-                    }
+                    commands.push(AppCommand::OffsetSelection {
+                        distance_mm: 3.0,
+                        join: ContourJoin::Round,
+                    });
                 }
             }
 
-            // Check if any selected shape can be converted to curves
-            let mut can_convert_curves = false;
-            for &id in &doc.selection.ids {
-                if let Some(shape) = doc.find_shape(id) {
-                    if !matches!(shape.kind, ShapeKind::Path(_)) {
-                        can_convert_curves = true;
-                        break;
-                    }
-                }
-            }
+            let can_convert_curves = doc.selection.ids.iter().any(|&id| {
+                doc.find_shape(id)
+                    .is_some_and(|s| !matches!(s.kind, ShapeKind::Path(_)))
+            });
 
             if can_convert_curves {
                 ui.separator();
@@ -343,9 +310,11 @@ pub fn show_prop_bar(
                             }
                         }
                     }
-                    toast.show("✓ Converted primitive(s) to curves");
+                    toast.show("Converted primitive(s) to curves");
                 }
             }
         }
     });
+
+    commands
 }

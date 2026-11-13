@@ -1,3 +1,4 @@
+use crate::affine::Affine2;
 use crate::bezier::CubicBezier;
 use crate::node::{BezierNode, NodeType};
 use crate::point::Point2;
@@ -113,6 +114,34 @@ impl Subpath {
         Some(r)
     }
 
+    /// Returns a new `Subpath` with all nodes transformed by the given affine transform.
+    pub fn transform(&self, affine: &Affine2) -> Self {
+        Self {
+            nodes: self.nodes.iter().map(|n| n.transform(affine)).collect(),
+            closed: self.closed,
+        }
+    }
+
+    /// Mutates all nodes in-place by `affine` without allocating; when `reverse_winding`
+    /// is `true`, swaps each node's incoming/outgoing handles and reverses node order.
+    pub fn apply_in_place(&mut self, affine: &Affine2, reverse_winding: bool) {
+        for node in &mut self.nodes {
+            node.point = affine.transform_point(node.point);
+            if let Some(h_in) = &mut node.handle_in {
+                *h_in = affine.transform_point(*h_in);
+            }
+            if let Some(h_out) = &mut node.handle_out {
+                *h_out = affine.transform_point(*h_out);
+            }
+            if reverse_winding {
+                std::mem::swap(&mut node.handle_in, &mut node.handle_out);
+            }
+        }
+        if reverse_winding {
+            self.nodes.reverse();
+        }
+    }
+
     /// Split segment at index `seg_idx` at parameter `t` (0.0..1.0).
     /// Inserts a new node and updates handles. Returns the index of the newly inserted node.
     pub fn split_segment(&mut self, seg_idx: usize, t: f64) -> Option<usize> {
@@ -208,8 +237,8 @@ impl Polycurve {
         Self::from_subpath(sub)
     }
 
-    /// Construct a rectangle normalized to cubic Béziers with optional corner radius.
-    pub fn rectangle(rect: Rect, corner_radius: f64, _corner_style: CornerStyle) -> Self {
+    /// Construct a rectangle normalized to cubic Béziers with optional corner radius and style.
+    pub fn rectangle(rect: Rect, corner_radius: f64, corner_style: CornerStyle) -> Self {
         let r = corner_radius
             .min(rect.width() * 0.5)
             .min(rect.height() * 0.5)
@@ -235,72 +264,174 @@ impl Polycurve {
                 NodeType::Cusp,
             ));
         } else {
-            // Fillet (rounded corners) using KAPPA * r
-            let k = KAPPA * r;
+            match corner_style {
+                CornerStyle::Chamfer => {
+                    // Straight beveled corners
+                    sub.push_node(BezierNode::new(
+                        Point2::new(rect.min_x, rect.min_y + r),
+                        NodeType::Cusp,
+                    ));
+                    sub.push_node(BezierNode::new(
+                        Point2::new(rect.min_x + r, rect.min_y),
+                        NodeType::Cusp,
+                    ));
 
-            // Top-left corner
-            let tl_start = Point2::new(rect.min_x, rect.min_y + r);
-            let tl_end = Point2::new(rect.min_x + r, rect.min_y);
-            sub.push_node(BezierNode::with_handles(
-                tl_start,
-                None,
-                Some(Point2::new(rect.min_x, rect.min_y + r - k)),
-                NodeType::Smooth,
-            ));
-            sub.push_node(BezierNode::with_handles(
-                tl_end,
-                Some(Point2::new(rect.min_x + r - k, rect.min_y)),
-                None,
-                NodeType::Smooth,
-            ));
+                    sub.push_node(BezierNode::new(
+                        Point2::new(rect.max_x - r, rect.min_y),
+                        NodeType::Cusp,
+                    ));
+                    sub.push_node(BezierNode::new(
+                        Point2::new(rect.max_x, rect.min_y + r),
+                        NodeType::Cusp,
+                    ));
 
-            // Top-right corner
-            let tr_start = Point2::new(rect.max_x - r, rect.min_y);
-            let tr_end = Point2::new(rect.max_x, rect.min_y + r);
-            sub.push_node(BezierNode::with_handles(
-                tr_start,
-                None,
-                Some(Point2::new(rect.max_x - r + k, rect.min_y)),
-                NodeType::Smooth,
-            ));
-            sub.push_node(BezierNode::with_handles(
-                tr_end,
-                Some(Point2::new(rect.max_x, rect.min_y + r - k)),
-                None,
-                NodeType::Smooth,
-            ));
+                    sub.push_node(BezierNode::new(
+                        Point2::new(rect.max_x, rect.max_y - r),
+                        NodeType::Cusp,
+                    ));
+                    sub.push_node(BezierNode::new(
+                        Point2::new(rect.max_x - r, rect.max_y),
+                        NodeType::Cusp,
+                    ));
 
-            // Bottom-right corner
-            let br_start = Point2::new(rect.max_x, rect.max_y - r);
-            let br_end = Point2::new(rect.max_x - r, rect.max_y);
-            sub.push_node(BezierNode::with_handles(
-                br_start,
-                None,
-                Some(Point2::new(rect.max_x, rect.max_y - r + k)),
-                NodeType::Smooth,
-            ));
-            sub.push_node(BezierNode::with_handles(
-                br_end,
-                Some(Point2::new(rect.max_x - r + k, rect.max_y)),
-                None,
-                NodeType::Smooth,
-            ));
+                    sub.push_node(BezierNode::new(
+                        Point2::new(rect.min_x + r, rect.max_y),
+                        NodeType::Cusp,
+                    ));
+                    sub.push_node(BezierNode::new(
+                        Point2::new(rect.min_x, rect.max_y - r),
+                        NodeType::Cusp,
+                    ));
+                }
+                CornerStyle::Scallop => {
+                    // Inverted round (concave arc into corner interior)
+                    let k = KAPPA * r;
 
-            // Bottom-left corner
-            let bl_start = Point2::new(rect.min_x + r, rect.max_y);
-            let bl_end = Point2::new(rect.min_x, rect.max_y - r);
-            sub.push_node(BezierNode::with_handles(
-                bl_start,
-                None,
-                Some(Point2::new(rect.min_x + r - k, rect.max_y)),
-                NodeType::Smooth,
-            ));
-            sub.push_node(BezierNode::with_handles(
-                bl_end,
-                Some(Point2::new(rect.min_x, rect.max_y - r + k)),
-                None,
-                NodeType::Smooth,
-            ));
+                    // Top-left
+                    sub.push_node(BezierNode::with_handles(
+                        Point2::new(rect.min_x, rect.min_y + r),
+                        None,
+                        Some(Point2::new(rect.min_x + k, rect.min_y + r)),
+                        NodeType::Smooth,
+                    ));
+                    sub.push_node(BezierNode::with_handles(
+                        Point2::new(rect.min_x + r, rect.min_y),
+                        Some(Point2::new(rect.min_x + r, rect.min_y + k)),
+                        None,
+                        NodeType::Smooth,
+                    ));
+
+                    // Top-right
+                    sub.push_node(BezierNode::with_handles(
+                        Point2::new(rect.max_x - r, rect.min_y),
+                        None,
+                        Some(Point2::new(rect.max_x - r, rect.min_y + k)),
+                        NodeType::Smooth,
+                    ));
+                    sub.push_node(BezierNode::with_handles(
+                        Point2::new(rect.max_x, rect.min_y + r),
+                        Some(Point2::new(rect.max_x - k, rect.min_y + r)),
+                        None,
+                        NodeType::Smooth,
+                    ));
+
+                    // Bottom-right
+                    sub.push_node(BezierNode::with_handles(
+                        Point2::new(rect.max_x, rect.max_y - r),
+                        None,
+                        Some(Point2::new(rect.max_x - k, rect.max_y - r)),
+                        NodeType::Smooth,
+                    ));
+                    sub.push_node(BezierNode::with_handles(
+                        Point2::new(rect.max_x - r, rect.max_y),
+                        Some(Point2::new(rect.max_x - r, rect.max_y - k)),
+                        None,
+                        NodeType::Smooth,
+                    ));
+
+                    // Bottom-left
+                    sub.push_node(BezierNode::with_handles(
+                        Point2::new(rect.min_x + r, rect.max_y),
+                        None,
+                        Some(Point2::new(rect.min_x + r, rect.max_y - k)),
+                        NodeType::Smooth,
+                    ));
+                    sub.push_node(BezierNode::with_handles(
+                        Point2::new(rect.min_x, rect.max_y - r),
+                        Some(Point2::new(rect.min_x + k, rect.max_y - r)),
+                        None,
+                        NodeType::Smooth,
+                    ));
+                }
+                CornerStyle::Round => {
+                    // Fillet (rounded corners) using KAPPA * r
+                    let k = KAPPA * r;
+
+                    // Top-left corner
+                    let tl_start = Point2::new(rect.min_x, rect.min_y + r);
+                    let tl_end = Point2::new(rect.min_x + r, rect.min_y);
+                    sub.push_node(BezierNode::with_handles(
+                        tl_start,
+                        None,
+                        Some(Point2::new(rect.min_x, rect.min_y + r - k)),
+                        NodeType::Smooth,
+                    ));
+                    sub.push_node(BezierNode::with_handles(
+                        tl_end,
+                        Some(Point2::new(rect.min_x + r - k, rect.min_y)),
+                        None,
+                        NodeType::Smooth,
+                    ));
+
+                    // Top-right corner
+                    let tr_start = Point2::new(rect.max_x - r, rect.min_y);
+                    let tr_end = Point2::new(rect.max_x, rect.min_y + r);
+                    sub.push_node(BezierNode::with_handles(
+                        tr_start,
+                        None,
+                        Some(Point2::new(rect.max_x - r + k, rect.min_y)),
+                        NodeType::Smooth,
+                    ));
+                    sub.push_node(BezierNode::with_handles(
+                        tr_end,
+                        Some(Point2::new(rect.max_x, rect.min_y + r - k)),
+                        None,
+                        NodeType::Smooth,
+                    ));
+
+                    // Bottom-right corner
+                    let br_start = Point2::new(rect.max_x, rect.max_y - r);
+                    let br_end = Point2::new(rect.max_x - r, rect.max_y);
+                    sub.push_node(BezierNode::with_handles(
+                        br_start,
+                        None,
+                        Some(Point2::new(rect.max_x, rect.max_y - r + k)),
+                        NodeType::Smooth,
+                    ));
+                    sub.push_node(BezierNode::with_handles(
+                        br_end,
+                        Some(Point2::new(rect.max_x - r + k, rect.max_y)),
+                        None,
+                        NodeType::Smooth,
+                    ));
+
+                    // Bottom-left corner
+                    let bl_start = Point2::new(rect.min_x + r, rect.max_y);
+                    let bl_end = Point2::new(rect.min_x, rect.max_y - r);
+                    sub.push_node(BezierNode::with_handles(
+                        bl_start,
+                        None,
+                        Some(Point2::new(rect.min_x + r - k, rect.max_y)),
+                        NodeType::Smooth,
+                    ));
+                    sub.push_node(BezierNode::with_handles(
+                        bl_end,
+                        Some(Point2::new(rect.min_x, rect.max_y - r + k)),
+                        None,
+                        NodeType::Smooth,
+                    ));
+                }
+            }
         }
 
         Self::from_subpath(sub)
@@ -456,6 +587,13 @@ impl Polycurve {
         self.subpaths.iter().map(|s| s.length()).sum()
     }
 
+    /// Returns a new `Polycurve` with all subpaths transformed by the given affine transform.
+    pub fn transform(&self, affine: &Affine2) -> Self {
+        Self {
+            subpaths: self.subpaths.iter().map(|s| s.transform(affine)).collect(),
+        }
+    }
+
     /// Flatten all subpaths into polylines within tolerance (mm).
     pub fn flatten(&self, tolerance: f64) -> Vec<Point2> {
         let mut pts = Vec::new();
@@ -485,6 +623,60 @@ impl Polycurve {
             (p, 0.0)
         } else {
             (best_pt, min_dist)
+        }
+    }
+}
+
+impl crate::contracts::TransformBuild for Polycurve {
+    fn translate(&self, delta: Point2) -> Affine2 {
+        Affine2::translate(delta)
+    }
+
+    fn rotate(
+        &self,
+        pivot: Point2,
+        angle_rad: f64,
+    ) -> Result<Affine2, crate::contracts::TransformError> {
+        Affine2::try_rotate_around(pivot, angle_rad)
+    }
+
+    fn mirror(
+        &self,
+        line_point: Point2,
+        line_dir: Point2,
+    ) -> Result<(Affine2, bool), crate::contracts::TransformError> {
+        let m = Affine2::try_mirror(line_point, line_dir)?;
+        Ok((m, true))
+    }
+
+    fn scale(
+        &self,
+        pivot: Point2,
+        factor: (f64, f64),
+    ) -> Result<Affine2, crate::contracts::TransformError> {
+        Affine2::try_scale_around(pivot, factor)
+    }
+}
+
+impl crate::contracts::TransformApply for Polycurve {
+    /// Applies `m` directly to every subpath in place with no matrix re-derivation,
+    /// storing the exact applied matrix as `TransformRecord.matrix`.
+    fn apply(&mut self, m: &Affine2) -> crate::contracts::TransformRecord {
+        let det = m.determinant();
+        let flips_winding = det.is_finite() && det < 0.0;
+        for sub in &mut self.subpaths {
+            sub.apply_in_place(m, flips_winding);
+        }
+        let inverse = m.inverse().unwrap_or(Affine2::IDENTITY);
+        crate::contracts::TransformRecord {
+            matrix: *m,
+            inverse,
+            flips_winding,
+            description: if flips_winding {
+                "Transform (mirrored)".to_string()
+            } else {
+                "Transform".to_string()
+            },
         }
     }
 }

@@ -1,5 +1,8 @@
 //! Tool state machine and interactive tool implementations for VDraw.
 
+pub mod contracts;
+pub mod dispatch;
+pub mod drag;
 pub mod ellipse;
 pub mod eraser;
 pub mod event;
@@ -11,12 +14,16 @@ pub mod pick;
 pub mod polygon;
 pub mod rectangle;
 pub mod shape_tool;
+pub mod snap_controller;
 pub mod spiral;
 pub mod star;
 pub mod text_tool;
 pub mod tool;
 pub mod virtual_segment_tool;
 
+pub use contracts::{AppCommand, CommandKind, ThemePref};
+pub use dispatch::{CommandError, DispatchCtx, Dispatcher, UiActionRequest, UiEffect};
+pub use drag::{DragSession, DragState, DRAG_ARM_THRESHOLD_PX};
 pub use ellipse::EllipseTool;
 pub use eraser::EraserTool;
 pub use event::{ModifiersState, PointerEvent};
@@ -28,6 +35,7 @@ pub use pick::PickTool;
 pub use polygon::PolygonTool;
 pub use rectangle::RectangleTool;
 pub use shape_tool::{SelectedNode, ShapeTool};
+pub use snap_controller::SnapController;
 pub use spiral::SpiralTool;
 pub use star::StarTool;
 pub use text_tool::TextTool;

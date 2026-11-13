@@ -4,12 +4,15 @@ use serde::{Deserialize, Serialize};
 /// Continuity type for a Bézier path node.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum NodeType {
-    /// Cusp: Handles are completely independent in direction and length.
+    /// Cusp ($G^0$ continuity): Position is continuous, but incoming and outgoing handles
+    /// are completely independent in direction and length.
     #[default]
     Cusp,
-    /// Smooth (G1): Handles are collinear (opposite directions), but have independent lengths.
+    /// Smooth ($G^1$ geometric continuity): Handles are collinear (opposite directions),
+    /// providing continuous unit tangent vectors while allowing independent handle lengths.
     Smooth,
-    /// Symmetrical: Handles are collinear and have identical lengths.
+    /// Symmetrical ($C^1$ parametric continuity): Handles are collinear and identical in length,
+    /// providing identical first derivative vectors across the node junction.
     Symmetrical,
 }
 
@@ -42,14 +45,12 @@ impl BezierNode {
         handle_out: Option<Point2>,
         node_type: NodeType,
     ) -> Self {
-        let mut node = Self {
+        Self {
             point,
             handle_in,
             handle_out,
             node_type,
-        };
-        node.enforce_constraints();
-        node
+        }
     }
 
     /// Update `handle_out` and update `handle_in` according to `node_type`.
@@ -117,6 +118,16 @@ impl BezierNode {
         }
     }
 
+    /// Transforms the node and its handles by an affine transformation.
+    pub fn transform(&self, affine: &crate::Affine2) -> Self {
+        Self {
+            point: affine.transform_point(self.point),
+            handle_in: self.handle_in.map(|h| affine.transform_point(h)),
+            handle_out: self.handle_out.map(|h| affine.transform_point(h)),
+            node_type: self.node_type,
+        }
+    }
+
     /// Enforce collinearity and length constraints according to `node_type`.
     pub fn enforce_constraints(&mut self) {
         match self.node_type {
@@ -125,11 +136,15 @@ impl BezierNode {
                 if let (Some(out_p), Some(in_p)) = (self.handle_out, self.handle_in) {
                     let out_vec = out_p - self.point;
                     let out_len = out_vec.length();
-                    let in_len = (in_p - self.point).length();
+                    let in_vec = in_p - self.point;
+                    let in_len = in_vec.length();
 
                     if out_len > 1e-9 {
                         let dir = -out_vec.normalize();
                         self.handle_in = Some(self.point + dir * in_len);
+                    } else if in_len > 1e-9 {
+                        let dir = -in_vec.normalize();
+                        self.handle_out = Some(self.point + dir * out_len);
                     }
                 }
             }

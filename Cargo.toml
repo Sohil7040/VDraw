@@ -20,7 +20,6 @@ egui_extras = "0.31"
 kurbo = "0.11"
 tiny-skia = "0.11"
 clipper2-rs = "0.3.0"
-cavalier_contours = "0.9.0"
 ttf-parser = "0.25.1"
 # Serialization
 serde = { version = "1", features = ["derive"] }
@@ -33,8 +32,12 @@ thiserror = "2"
 anyhow = "1"
 # Spatial index
 rstar = "0.12"
-# Testing
+bitflags = "2"
+# Testing & Benchmarking (dev-dependencies only in workspace crates)
 proptest = "1.6"
+criterion = "0.5"
+insta = "1"
+approx = "0.5"
 
 [profile.dev]
 opt-level = 1

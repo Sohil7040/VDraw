@@ -6,6 +6,11 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ShapeId(pub u64);
 
+impl ShapeId {
+    /// Sentinel identifier representing no concrete shape owner (e.g. grid/guidelines).
+    pub const NONE: Self = Self(0);
+}
+
 impl std::fmt::Display for ShapeId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "#{}", self.0)
@@ -61,7 +66,7 @@ pub enum ShapeKind {
         position: Point2,
     },
     Group {
-        children: Vec<ShapeId>,
+        shapes: Vec<Shape>,
     },
 }
 
@@ -157,6 +162,32 @@ impl Shape {
         )
     }
 
+    pub fn group(id: ShapeId, shapes: Vec<Shape>) -> Self {
+        Self::new(id, "Group", ShapeKind::Group { shapes })
+    }
+
+    pub fn is_group(&self) -> bool {
+        matches!(self.kind, ShapeKind::Group { .. })
+    }
+
+    /// Recursively visits all leaf shapes in this shape or group, accumulating affine transforms.
+    pub fn for_each_primitive<F>(&self, parent_tr: &Affine2, f: &mut F)
+    where
+        F: FnMut(&Shape, &Affine2),
+    {
+        let acc = *parent_tr * self.transform;
+        match &self.kind {
+            ShapeKind::Group { shapes } => {
+                for child in shapes {
+                    child.for_each_primitive(&acc, f);
+                }
+            }
+            _ => {
+                f(self, &acc);
+            }
+        }
+    }
+
     /// Converts parametric primitive shape kinds (Rect, Ellipse, Polygon, etc.)
     /// into an editable cubic Bézier `Path`.
     pub fn convert_to_path(&mut self) {
@@ -193,7 +224,16 @@ impl Shape {
                 turns,
                 expansion,
             } => Polycurve::spiral(*center, *turns, *expansion),
-            ShapeKind::Text { .. } | ShapeKind::Group { .. } => Polycurve::new(),
+            ShapeKind::Group { shapes } => {
+                let mut combined = Polycurve::new();
+                for child in shapes {
+                    let child_poly = child.to_polycurve();
+                    let transformed = child_poly.transform(&child.transform);
+                    combined.subpaths.extend(transformed.subpaths);
+                }
+                combined
+            }
+            ShapeKind::Text { .. } => Polycurve::new(),
         }
     }
 
@@ -209,6 +249,15 @@ impl Shape {
                 center.y + ry,
             )),
             ShapeKind::Line { start, end } => Some(Rect::from_points(*start, *end)),
+            ShapeKind::Group { shapes } => {
+                let mut total: Option<Rect> = None;
+                for child in shapes {
+                    if let Some(cb) = child.world_bounds() {
+                        total = Some(total.map_or(cb, |t| t.union(&cb)));
+                    }
+                }
+                total
+            }
             _ => self.to_polycurve().bounds(),
         }
     }
@@ -237,6 +286,14 @@ impl Shape {
         };
 
         match &self.kind {
+            ShapeKind::Group { shapes } => {
+                for child in shapes {
+                    if child.hit_test(local_pt, tolerance) {
+                        return true;
+                    }
+                }
+                false
+            }
             ShapeKind::Rect { rect, .. } => {
                 let inflated = rect.inflate(tolerance, tolerance);
                 if self.style.fill.is_some() {

@@ -3,6 +3,7 @@
 
 pub mod boolean;
 pub mod command;
+pub mod contracts;
 pub mod convert;
 pub mod eraser;
 pub mod error;
@@ -17,6 +18,7 @@ pub use command::{
     apply_knife_to_document, apply_text_to_document, apply_virtual_segment_delete_to_document,
     BooleanReplaceCommand,
 };
+pub use contracts::{boolean_with_options, BoolCancelToken, BoolError, BoolOp, BoolOptions};
 pub use eraser::erase_shape;
 pub use error::{BooleanError, TextError};
 pub use knife::slice_shape;

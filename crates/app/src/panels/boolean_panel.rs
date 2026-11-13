@@ -1,13 +1,9 @@
-//! Dock panel for Phase 4 Boolean CAD Operations, Parallel Contours, and Vector Text.
+//! Dock panel for Boolean CAD operations, parallel contours, and vector text outlines.
 
-use crate::panels::toast::ToastManager;
-use crate::theme;
-use core_boolean::{
-    apply_boolean_to_document, apply_contour_to_document, apply_text_to_document, BooleanOp,
-    ContourJoin,
-};
-use core_doc::{Document, UndoStack};
-use core_geom::Point2;
+use crate::tokens::ThemeTokens;
+use core_boolean::{BooleanOp, ContourJoin};
+use core_doc::Document;
+use core_tools::AppCommand;
 
 /// Persistent state for the Boolean and Contour dock tab.
 #[derive(Debug)]
@@ -29,31 +25,33 @@ impl Default for BooleanPanelState {
     }
 }
 
-/// Show the Boolean Shaping and CAM Contour tools in the dock panel.
+/// Show the Boolean Shaping and CAM Contour tools in the dock panel, returning any
+/// [`AppCommand`]s to dispatch through [`core_tools::Dispatcher`].
 pub fn show_boolean_panel(
     ui: &mut egui::Ui,
     state: &mut BooleanPanelState,
-    doc: &mut Document,
-    undo: &mut UndoStack,
-    toast: &mut ToastManager,
-) {
+    doc: &Document,
+) -> Vec<AppCommand> {
+    let tokens = ThemeTokens::from_ctx(ui.ctx());
+    let c = &tokens.color;
+    let mut commands = Vec::new();
+
     ui.heading("Boolean Shaping");
     ui.separator();
 
     let sel_count = doc.selection.len();
 
-    // ── 1. Selection Status Badge ──────────────────────────────────────────
     ui.horizontal(|ui| {
         let badge_color = if sel_count >= 2 {
-            theme::ACCENT
+            c.accent
         } else if sel_count == 1 {
-            theme::DYNAMIC_GUIDE
+            c.polar_guide
         } else {
-            theme::TEXT_DISABLED
+            c.on_surface_disabled
         };
 
         ui.label(
-            egui::RichText::new(format!("● {} Shape(s) Selected", sel_count))
+            egui::RichText::new(format!("● {sel_count} Shape(s) Selected"))
                 .color(badge_color)
                 .small()
                 .strong(),
@@ -62,7 +60,6 @@ pub fn show_boolean_panel(
 
     ui.add_space(6.0);
 
-    // ── 2. Boolean Operations Grid ────────────────────────────────────────
     let can_boolean = sel_count >= 2;
     let ops = [
         (
@@ -111,7 +108,7 @@ pub fn show_boolean_panel(
         ui.label(
             egui::RichText::new("COMBINE & SHAPING")
                 .size(10.5)
-                .color(theme::TEXT_SECONDARY)
+                .color(c.on_surface_muted)
                 .strong(),
         );
         ui.add_space(4.0);
@@ -124,17 +121,9 @@ pub fn show_boolean_panel(
             };
 
             let btn = egui::Button::new(label).min_size(egui::vec2(ui.available_width(), 26.0));
-
             let r = ui.add_enabled(enabled, btn).on_hover_text(tooltip);
             if r.clicked() {
-                match apply_boolean_to_document(doc, undo, op, true) {
-                    Ok(msg) => {
-                        toast.show(format!("✓ {}", msg));
-                    }
-                    Err(e) => {
-                        toast.show(format!("⚠ Boolean failed: {}", e));
-                    }
-                }
+                commands.push(AppCommand::BooleanOp(op));
             }
             ui.add_space(2.0);
         }
@@ -142,12 +131,11 @@ pub fn show_boolean_panel(
 
     ui.add_space(10.0);
 
-    // ── 3. Parallel Contour / Offset Section ──────────────────────────────
     ui.group(|ui| {
         ui.label(
             egui::RichText::new("CONTOUR / PARALLEL OFFSET")
                 .size(10.5)
-                .color(theme::TEXT_SECONDARY)
+                .color(c.on_surface_muted)
                 .strong(),
         );
         ui.add_space(4.0);
@@ -177,25 +165,20 @@ pub fn show_boolean_panel(
         );
 
         if r.clicked() {
-            match apply_contour_to_document(doc, undo, state.offset_mm, state.join_type) {
-                Ok(msg) => {
-                    toast.show(format!("✓ {}", msg));
-                }
-                Err(e) => {
-                    toast.show(format!("⚠ Contour error: {}", e));
-                }
-            }
+            commands.push(AppCommand::OffsetSelection {
+                distance_mm: state.offset_mm,
+                join: state.join_type,
+            });
         }
     });
 
     ui.add_space(10.0);
 
-    // ── 4. Vector Text to Outlines Section ────────────────────────────────
     ui.group(|ui| {
         ui.label(
             egui::RichText::new("VECTOR TEXT OUTLINES")
                 .size(10.5)
-                .color(theme::TEXT_SECONDARY)
+                .color(c.on_surface_muted)
                 .strong(),
         );
         ui.add_space(4.0);
@@ -220,22 +203,12 @@ pub fn show_boolean_panel(
             .min_size(egui::vec2(ui.available_width(), 26.0));
 
         if ui.add(btn).clicked() {
-            let center = if let Some(bounds) = doc.selection_bounds() {
-                Point2::new(bounds.center().x, bounds.center().y + 30.0)
-            } else if let Some(p) = doc.active_page() {
-                Point2::new(p.width_mm * 0.3, p.height_mm * 0.5)
-            } else {
-                Point2::new(50.0, 50.0)
-            };
-
-            match apply_text_to_document(doc, undo, &state.text_input, state.font_size_mm, center) {
-                Ok(msg) => {
-                    toast.show(format!("✓ {}", msg));
-                }
-                Err(e) => {
-                    toast.show(format!("⚠ Text rendering error: {}", e));
-                }
-            }
+            commands.push(AppCommand::ConvertTextToPath {
+                text: state.text_input.clone(),
+                size_mm: state.font_size_mm,
+            });
         }
     });
+
+    commands
 }

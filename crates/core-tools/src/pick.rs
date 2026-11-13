@@ -256,23 +256,38 @@ impl Tool for PickTool {
                 let init_h = initial_bounds.height();
 
                 if init_w > 1e-6 && init_h > 1e-6 {
-                    let cur_w = (p.x - origin_pt.x).abs();
-                    let cur_h = (p.y - origin_pt.y).abs();
+                    let dx = match handle {
+                        HandleId::Right | HandleId::BottomRight | HandleId::TopRight => {
+                            p.x - origin_pt.x
+                        }
+                        HandleId::Left | HandleId::BottomLeft | HandleId::TopLeft => {
+                            origin_pt.x - p.x
+                        }
+                        _ => init_w,
+                    };
+
+                    let dy = match handle {
+                        HandleId::Bottom | HandleId::BottomRight | HandleId::BottomLeft => {
+                            p.y - origin_pt.y
+                        }
+                        HandleId::Top | HandleId::TopRight | HandleId::TopLeft => origin_pt.y - p.y,
+                        _ => init_h,
+                    };
 
                     match handle {
                         HandleId::Left | HandleId::Right => {
-                            sx = cur_w / init_w;
+                            sx = dx / init_w;
                         }
                         HandleId::Top | HandleId::Bottom => {
-                            sy = cur_h / init_h;
+                            sy = dy / init_h;
                         }
                         _ => {
-                            sx = cur_w / init_w;
-                            sy = cur_h / init_h;
+                            sx = dx / init_w;
+                            sy = dy / init_h;
                             if event.modifiers.ctrl {
-                                let s = sx.max(sy);
-                                sx = s;
-                                sy = s;
+                                let s = sx.abs().max(sy.abs());
+                                sx = s * if sx < 0.0 { -1.0 } else { 1.0 };
+                                sy = s * if sy < 0.0 { -1.0 } else { 1.0 };
                             }
                         }
                     }
@@ -357,10 +372,18 @@ impl Tool for PickTool {
                 if marquee_rect.width() > 1.0 && marquee_rect.height() > 1.0 {
                     let mut matched_ids = Vec::new();
                     if let Some(page) = doc.active_page() {
-                        for shape in page.all_shapes() {
-                            if let Some(sb) = shape.world_bounds() {
-                                if marquee_rect.intersects(&sb) {
-                                    matched_ids.push(shape.id);
+                        for layer in &page.layers {
+                            if !layer.visible || layer.locked {
+                                continue;
+                            }
+                            for shape in &layer.shapes {
+                                if !shape.visible || shape.locked {
+                                    continue;
+                                }
+                                if let Some(sb) = shape.world_bounds() {
+                                    if marquee_rect.intersects(&sb) {
+                                        matched_ids.push(shape.id);
+                                    }
                                 }
                             }
                         }

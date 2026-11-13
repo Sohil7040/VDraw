@@ -1,10 +1,10 @@
-//! Left toolbar — tool selection palette.
+//! Left tool palette derived from the [`AppCommand`] catalog (`CommandKind::Tool`).
 
-use core_tools::ToolId;
+use crate::command_palette::build_command_catalog;
+use crate::tokens::{RadiusTokens, SpacingTokens, ThemeTokens};
+use core_tools::{AppCommand, CommandKind, ToolId};
 
-use crate::theme;
-
-/// Persistent state for the toolbar.
+/// Persistent state for the left tool palette.
 #[derive(Debug, Clone)]
 pub struct ToolbarState {
     pub active_tool: ToolId,
@@ -18,158 +18,74 @@ impl Default for ToolbarState {
     }
 }
 
-/// A tool entry shown in the toolbar.
-struct ToolEntry {
-    id: ToolId,
-    icon: &'static str,
-}
+/// Renders the left tool palette by iterating `AppCommand` catalog entries with
+/// `CommandKind::Tool`. Returns any clicked [`AppCommand`] for dispatch.
+pub fn show_toolbar(ui: &mut egui::Ui, active_tool: ToolId) -> Option<AppCommand> {
+    ui.set_width(SpacingTokens::TOOLBAR_WIDTH);
+    let tokens = ThemeTokens::from_ctx(ui.ctx());
+    let mut triggered: Option<AppCommand> = None;
 
-static SELECTION_GROUP: &[ToolEntry] = &[
-    ToolEntry {
-        id: ToolId::Pick,
-        icon: "↖",
-    },
-    ToolEntry {
-        id: ToolId::Shape,
-        icon: "☩",
-    },
-    ToolEntry {
-        id: ToolId::FreeTransform,
-        icon: "⤡",
-    },
-];
-
-static DRAWING_GROUP: &[ToolEntry] = &[
-    ToolEntry {
-        id: ToolId::Pen,
-        icon: "✒",
-    },
-    ToolEntry {
-        id: ToolId::Line,
-        icon: "╱",
-    },
-    ToolEntry {
-        id: ToolId::Freehand,
-        icon: "〜",
-    },
-    ToolEntry {
-        id: ToolId::Rectangle,
-        icon: "▭",
-    },
-    ToolEntry {
-        id: ToolId::Ellipse,
-        icon: "⬭",
-    },
-    ToolEntry {
-        id: ToolId::Polygon,
-        icon: "⬡",
-    },
-    ToolEntry {
-        id: ToolId::Star,
-        icon: "★",
-    },
-    ToolEntry {
-        id: ToolId::Spiral,
-        icon: "🌀",
-    },
-];
-
-static EDITING_GROUP: &[ToolEntry] = &[
-    ToolEntry {
-        id: ToolId::Knife,
-        icon: "⚔",
-    },
-    ToolEntry {
-        id: ToolId::Eraser,
-        icon: "⌫",
-    },
-    ToolEntry {
-        id: ToolId::VirtualSegmentDelete,
-        icon: "✂",
-    },
-];
-
-static TEXT_GROUP: &[ToolEntry] = &[ToolEntry {
-    id: ToolId::Text,
-    icon: "T",
-}];
-
-static VIEW_GROUP: &[ToolEntry] = &[
-    ToolEntry {
-        id: ToolId::Zoom,
-        icon: "🔍",
-    },
-    ToolEntry {
-        id: ToolId::Pan,
-        icon: "✋",
-    },
-];
-
-pub fn show_toolbar(ui: &mut egui::Ui, state: &mut ToolbarState) {
-    ui.set_width(theme::TOOLBAR_WIDTH);
+    let tool_entries: Vec<_> = build_command_catalog()
+        .into_iter()
+        .filter(|e| e.kind == CommandKind::Tool)
+        .collect();
 
     egui::ScrollArea::vertical()
         .id_salt("toolbar_scroll")
         .auto_shrink([false; 2])
         .show(ui, |ui| {
-            ui.spacing_mut().item_spacing = egui::vec2(0.0, 2.0);
+            ui.spacing_mut().item_spacing = egui::vec2(0.0, SpacingTokens::XS);
+            ui.add_space(SpacingTokens::XS);
 
-            show_group(ui, state, "Selection", SELECTION_GROUP);
-            ui.separator();
-            show_group(ui, state, "Drawing", DRAWING_GROUP);
-            ui.separator();
-            show_group(ui, state, "Editing", EDITING_GROUP);
-            ui.separator();
-            show_group(ui, state, "Text", TEXT_GROUP);
-            ui.separator();
-            show_group(ui, state, "View", VIEW_GROUP);
+            for entry in tool_entries {
+                let AppCommand::ActivateTool(tool_id) = entry.command else {
+                    continue;
+                };
+                let is_active = active_tool == tool_id;
+                let btn_size = egui::vec2(SpacingTokens::TOOLBAR_WIDTH - 12.0, 28.0);
+
+                let fill = if is_active {
+                    tokens.color.surface_active
+                } else {
+                    tokens.color.surface_elevated
+                };
+                let stroke = if is_active {
+                    egui::Stroke::new(1.5, tokens.color.accent)
+                } else {
+                    egui::Stroke::new(1.0, tokens.color.transparent)
+                };
+                let text_col = if is_active {
+                    tokens.color.accent_hover
+                } else {
+                    tokens.color.on_surface
+                };
+
+                let label = format!("{}  {}", entry.icon, tool_id.label());
+                let btn = egui::Button::new(egui::RichText::new(label).small().color(text_col))
+                    .fill(fill)
+                    .stroke(stroke)
+                    .corner_radius(egui::CornerRadius::same(RadiusTokens::MD))
+                    .min_size(btn_size);
+
+                let tooltip = format!("{} [{}]", tool_id.label(), tool_id.shortcut());
+                let resp = ui.add(btn).on_hover_text(&tooltip);
+                resp.widget_info(|| {
+                    egui::WidgetInfo::labeled(
+                        egui::WidgetType::Button,
+                        true,
+                        format!("{} Tool", tool_id.label()),
+                    )
+                });
+
+                if resp.hovered() {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                }
+
+                if resp.clicked() {
+                    triggered = Some(AppCommand::ActivateTool(tool_id));
+                }
+            }
         });
-}
 
-fn show_group(ui: &mut egui::Ui, state: &mut ToolbarState, _group_name: &str, tools: &[ToolEntry]) {
-    for entry in tools {
-        let is_active = state.active_tool == entry.id;
-        let btn_size = egui::vec2(theme::TOOLBAR_WIDTH - 4.0, theme::TOOLBAR_WIDTH - 4.0);
-
-        let btn_text = egui::RichText::new(entry.icon)
-            .size(18.0)
-            .color(if is_active {
-                theme::ACCENT
-            } else {
-                theme::TEXT_PRIMARY
-            });
-
-        let btn_fill = if is_active {
-            theme::BG_ACTIVE
-        } else {
-            theme::BG_PANEL
-        };
-
-        let frame = egui::Frame::NONE
-            .fill(btn_fill)
-            .corner_radius(egui::CornerRadius::same(theme::CORNER_RADIUS))
-            .inner_margin(egui::Margin::same(2));
-
-        let r = frame.show(ui, |ui| {
-            ui.set_min_size(btn_size);
-            ui.centered_and_justified(|ui| ui.label(btn_text)).inner
-        });
-
-        let r = ui.interact(
-            r.response.rect,
-            ui.id().with(entry.id),
-            egui::Sense::click(),
-        );
-
-        if r.hovered() {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-        }
-
-        let tooltip = format!("{} [{}]", entry.id.label(), entry.id.shortcut());
-        let r = r.on_hover_text(tooltip);
-
-        if r.clicked() {
-            state.active_tool = entry.id;
-        }
-    }
+    triggered
 }

@@ -6,8 +6,16 @@ edition = "2021"
 [dependencies]
 core-geom = { path = "../core-geom" }
 core-doc = { path = "../core-doc" }
+egui = { workspace = true }
+bitflags = { workspace = true }
 rstar = { workspace = true }
 serde = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
+criterion = { workspace = true }
+approx = { workspace = true }
+
+[[bench]]
+name = "snap_bench"
+harness = false
